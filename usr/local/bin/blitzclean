@@ -1,0 +1,527 @@
+#!/usr/bin/env bash
+# ==============================================================
+#  BlitzClean v3.3
+#  The Ultimate Ubuntu Cleanup Script
+#  Safely cleans: caches, temp files, logs, Snap/Flatpak leftovers,
+#  browser caches (optional), recent documents history, trash, thumbnails,
+#  and optionally removes old kernels. Supports secure-delete (srm).
+# ==============================================================
+
+# DRYRUN - When set to "1", perform a dry run only.
+# Lists what would be deleted without removing anything.
+DRYRUN=0
+
+# CLEANBROWSERS - When set to "1", clean browser caches, history and configuration.
+# Applies to user-level caches for Firefox and Chromium/Chrome.
+CLEANBROWSERS=0
+
+# REMOVEKERNELS - When set to "1", remove old linux-image packages.
+# The currently running kernel is always kept for safety.
+REMOVEKERNELS=0
+
+# VACUUMDAYS - Journal retention window used by journalctl --vacuum-time.
+# Older logs beyond this age will be removed.
+VACUUMDAYS=7
+
+# VACUUMSIZE - Journal size cap used by journalctl --vacuum-size.
+# Journald trims logs until total size is at or below this value.
+VACUUMSIZE="100M"
+
+# KEEPSNAPS - Number of Snap revisions to retain per app.
+# Older revisions beyond this count will be pruned.
+KEEPSNAPS=2
+
+# CLEANALL - When set to "1", enables multiple aggressive options at once.
+# Specifically turns on CLEANBROWSERS and REMOVEKERNELS.
+CLEANALL=0
+
+# SRMOPTS - Default flags passed to `srm` for secure deletion.
+# -f forces removal and/or -z adds a final zeroing pass.
+SRMOPTS="-f -z"
+
+# SRMUSE - Runtime flag set to "1" if `srm` is detected.
+# Controls whether secure deletion is used where applicable.
+SRMUSE=0
+
+# TOTALBYTES - Accumulator for total bytes scheduled/removed.
+# Used to report reclaimed space statistics at the end.
+TOTALBYTES=0
+
+# FRONTROOTSIZE - Free bytes on "/" measured before cleanup.
+# Captured to compare space reclaimed on the root filesystem.
+FRONTROOTSIZE=""
+
+# FRONTHOMESIZE - Free bytes on $USERHOME before cleanup.
+# Captured to compare space reclaimed on the home filesystem.
+FRONTHOMESIZE=""
+
+# BACKROOTSIZE - Free bytes on "/" measured after cleanup.
+# Used with FRONTROOTSIZE to compute reclaimed space.
+BACKROOTSIZE=""
+
+# BACKHOMESIZE - Free bytes on $USERHOME after cleanup.
+# Used with FRONTHOMESIZE to compute reclaimed space.
+BACKHOMESIZE=""
+
+# USERHOME - target home directory for user-level cleanup.
+# Defaults to current user if empty can be set for other users.
+USERHOME=""
+
+# VERSION - Human-readable script version string.
+# Update this when making user-visible changes.
+VERSION="3.3"
+
+# Function showbanner()
+# Print the startup banner with current configuration and capability summary
+# Return: void
+showbanner() 
+{
+    say "============================================================"
+    say " BlitzClean v$VERSION: The Ultimate Ubuntu Cleanup Script"
+    say "============================================================"
+    say "Mode: $([[ $DRYRUN -eq 1 ]] && echo 'Dry-run (listing only)' || echo 'Real Execution')"
+
+    [[ $CLEANBROWSERS -eq 1 ]] && say "Browser cache cleaning: ENABLED"
+    [[ $REMOVEKERNELS -eq 1 ]] && say "Old kernel removal: ENABLED"
+
+    say "Journal retention: ${VACUUMDAYS} days / ${VACUUMSIZE} max size"
+    say "Secure delete (srm): $([[ $SRMUSE -eq 1 ]] && echo 'ENABLED' || echo 'not found, using rm')"
+    rootcheck && say "Privileges: root (full cleanup)" || say "Privileges: user-only cleanup"
+    echo
+}
+
+# Function showusage()
+# Print the usage menu with optional arguments
+# Return: <string>
+showusage() 
+{
+    echo "==============================================================="
+    echo " BlitzClean - Usage Menu"
+    echo "==============================================================="
+    echo "Description:"
+    echo "  Safely reclaim disk space on Ubuntu by cleaning caches, temp files,"
+    echo "  logs, Snap/Flatpak leftovers, browser caches (optional), recent-docs"
+    echo "  history, trash, thumbnails, and optionally old kernels."
+    echo
+    echo "Syntax:"
+    echo "  ./blitzclean [OPTIONS]"
+    echo
+    echo "Core Options:"
+    echo "  --dry-run           Preview EXACT files/paths that would be deleted."
+    echo "                      Nothing is removed (recommended first run)."
+    echo "  --all               Enable all optional features (browsers + old kernels)."
+    echo "  --browsers          Also clean browser caches (Firefox/Chrome/Chromium/Brave)."
+    echo "  --old-kernels       Remove old linux-image packages (keeps current kernel)."
+    echo "  --vacuum-days N     Journal retention by age (default: 7)."
+    echo "  --vacuum-size SIZE  Journal retention by size (default: 100M)."
+    echo "  --keep-snaps N      Keep N Snap revisions (default: 2)."
+    echo
+    echo "Help & Info:"
+    echo "  -h, --help, usage   Show this menu and exit."
+    echo "  --version           Print version and exit."
+    echo
+    echo "Examples:"
+    echo "  ./blitzclean --dry-run"
+    echo "  sudo ./blitzclean --all"
+    echo "  sudo ./blitzclean --all --vacuum-days 7 --vacuum-size 100M --keep-snaps 2"
+    echo
+    echo "Notes:"
+    echo "  • For secure wiping:  sudo apt-get install secure-delete"
+    echo "  • Run with sudo for system-wide cleanup (APT, logs, Snap/Flatpak)."
+    echo "  • Dry-run lists every file; real run reports estimated + observed space freed."
+    echo "==============================================================="
+}
+
+# Function showsummary()
+# Print estimated bytes deleted and observed free-space deltas; finish with usage tips
+# Return: void
+showsummary() 
+{
+    echo
+    say "==============================================================="
+    say " Cleanup Summary"
+    say "==============================================================="
+    say "Estimated freed (bytes deleted): $(humansize "$TOTALBYTES")"
+
+    # Real change in free space (if not dry-run)
+    if [[ $DRYRUN -eq 0 ]]; 
+    then
+        BACKROOTSIZE=$(freebytes "/")
+        BACKHOMESIZE=$(freebytes "$USERHOME")
+
+        if [[ -n "$FRONTROOTSIZE" && -n "$BACKROOTSIZE" ]]; 
+        then
+            local delta_root=$((BACKROOTSIZE - FRONTROOTSIZE))
+            say "Observed free space change on / : $(humansize "$delta_root")"
+        fi
+
+        if [[ -n "$FRONTHOMESIZE" && -n "$BACKHOMESIZE" ]]; 
+        then
+            local delta_home=$((BACKHOMESIZE - FRONTHOMESIZE))
+            say "Observed free space change on \$HOME filesystem: $(humansize "$delta_home")"
+        fi
+    else
+        say "Dry-run mode: nothing was deleted. Above you saw EXACTLY what would be removed."
+    fi
+
+    echo
+    say "Tips:"
+    say " - Full cleanup: sudo ./blitzclean.sh --all"
+    say " - Preview safely: ./blitzclean.sh --dry-run"
+}
+
+# ------------------------- Utility Functions -------------------------
+
+# Function say()
+# Execute echo with -e for consistent output formatting
+# Return: <string>
+say() 
+{
+    echo -e "$@"
+}
+
+# Function rootcheck()
+# Check if running as root (EUID=0)
+# Return: <boolean>
+rootcheck() 
+{
+    [[ $EUID -eq 0 ]]
+}
+
+# Function cmdcheck()
+# Check if command exists in PATH
+# Return: <boolean>
+cmdcheck() 
+{
+    command -v "$1" &>/dev/null
+}
+
+# Function run()
+# Prints command in dry-run otherwise executes
+# Return: <cmd>
+run() 
+{
+    if [[ $DRYRUN -eq 1 ]]; 
+    then
+        echo "[DRY-RUN] $*"
+    else
+        eval "$*"
+    fi
+}
+
+# Function humansize() 
+# Print a human-readable size from bytes
+# Return: <bytes>
+humansize() 
+{
+    local b="$1"
+    awk -v bytes="$b" 'function human(x){s="BKMGTPE";while(x>=1024&&length(s)>1){x/=1024;s=substr(s,2)}printf("%.2f %s\n",x,substr(s,1,1))} BEGIN{human(bytes)}'
+}
+
+# Function addbytes()
+# Safely add to the TOTALBYTES accumulator
+# Return: <bytes>
+addbytes() 
+{
+    [[ -n "$1" ]] && TOTALBYTES=$((TOTALBYTES + $1))
+}
+
+# Function freebytes()
+# echo available bytes on filesystem containing <path>
+# Return: <bytes>
+freebytes() 
+{
+    local p="$1"
+    df -B1 --output=avail "$p" 2>/dev/null | tail -1 | tr -d ' '
+}
+
+# Function previewlist()
+# List immediate children of a directory (for dry-run)
+# Return: <dir>
+previewlist() 
+{
+    local d="$1"
+    [[ -d "$d" ]] || return
+    find "$d" -mindepth 1 -maxdepth 1 -print 2>/dev/null
+}
+
+# Function delfile()
+# Delete a single file securely if possible
+# Return: <file>
+delfile() 
+{
+    local f="$1"
+    if [[ $DRYRUN -eq 1 ]]; 
+    then
+        echo "$f"
+        return 0
+    fi
+  
+    if [[ $SRMUSE -eq 1 ]]; 
+    then
+        srm $SRMOPTS -- "$f" 2>/dev/null || rm -f -- "$f"
+    else
+        rm -f -- "$f"
+    fi
+}
+
+# Function deldir()
+# Recursively delete a directory securely if possible
+# Return: <dir>
+deldir() 
+{
+    local d="$1"
+    if [[ $DRYRUN -eq 1 ]];
+    then
+        find "$d" -mindepth 1 -print 2>/dev/null
+        return 0
+    fi
+  
+    if [[ $SRMUSE -eq 1 ]];
+    then
+        srm -r $SRMOPTS -- "$d" 2>/dev/null || rm -rf -- "$d"
+    else
+        rm -rf -- "$d"
+    fi
+}
+
+# Function delpath()
+# Delete a file OR the CONTENTS of a directory
+# Return: <path>
+delpath() 
+{
+    local target="$1"
+    [[ -e "$target" ]] || return 0
+
+    local size
+    size=$(du -sb "$target" 2>/dev/null | awk '{print $1}')
+    addbytes "${size:-0}"
+
+    if [[ -d "$target" ]];
+    then
+        if [[ $DRYRUN -eq 1 ]];
+        then
+            previewlist "$target"
+        else
+            find "$target" -mindepth 1 -maxdepth 1 -print0 2>/dev/null | \
+            while IFS= read -r -d '' p;
+            do
+                if [[ -d "$p" ]];
+                then
+                    deldir "$p"
+                else
+                    delfile "$p"
+                fi
+            done
+        fi
+    else
+        delfile "$target"
+    fi
+}
+
+# Function delpattern()
+# Delete files matching pattern within dir
+# Return: <dir> <glob>
+delpattern() 
+{
+    local dir="$1" pattern="$2"
+    [[ -d "$dir" ]] || return 0
+
+    mapfile -t files < <(find "$dir" -maxdepth 1 -type f -name "$pattern" -print 2>/dev/null)
+    [[ ${#files[@]} -eq 0 ]] && return 0
+
+    local bytes
+    bytes=$(printf '%s\0' "${files[@]}" | xargs -0 -I{} du -sb "{}" 2>/dev/null | awk '{s+=$1} END{print s+0}')
+    addbytes "${bytes:-0}"
+
+    if [[ $DRYRUN -eq 1 ]];
+    then
+        printf "%s\n" "${files[@]}"
+    else
+        if [[ $SRMUSE -eq 1 ]]; 
+        then
+            printf '%s\0' "${files[@]}" | xargs -0 -r srm $SRMOPTS -- 2>/dev/null || \
+            printf '%s\0' "${files[@]}" | xargs -0 -r rm -f --
+        else
+            printf '%s\0' "${files[@]}" | xargs -0 -r rm -f --
+        fi
+    fi
+}
+
+# Function argsparser()
+# Parse the arguments passed into the script
+# Return: void
+argsparser() 
+{
+    [[ $# -eq 0 ]] && return 0
+
+    while [[ $# -gt 0 ]];
+    do
+        case "$1" in
+          --dry-run) DRYRUN=1; shift ;;
+          --browsers) CLEANBROWSERS=1; shift ;;
+          --old-kernels) REMOVEKERNELS=1; shift ;;
+          --vacuum-days) VACUUMDAYS="${2:-7}"; shift 2 ;;
+          --vacuum-size) VACUUMSIZE="${2:-100M}"; shift 2 ;;
+          --keep-snaps) KEEPSNAPS="${2:-2}"; shift 2 ;;
+          --all) CLEANALL=1; shift ;;
+          -h|--help|usage) showusage; exit 0 ;;
+          --version) echo "BlitzClean v$VERSION"; exit 0 ;;
+          *) echo "Unknown argument: $1"; echo; showusage; exit 1 ;;
+        esac
+    done
+
+    if [[ $CLEANALL -eq 1 ]];
+    then
+        CLEANBROWSERS=1
+        REMOVEKERNELS=1
+    fi
+}
+
+# Function cleanuphome()
+# Perform user-level cleanup in $USERHOME
+# Return: void
+cleanuphome() 
+{
+    say "Cleaning user data for: $USERHOME"
+    delpath "$USERHOME/.cache"
+    delpath "$USERHOME/.thumbnails"
+    delpath "$USERHOME/.cache/thumbnails"
+    delpath "$USERHOME/.local/share/Trash/files"
+    delpath "$USERHOME/.local/share/Trash/info"
+
+    say "Cleaning recent documents list"
+    local recent_list=(
+    "$USERHOME/.local/share/recently-used.xbel"
+    "$USERHOME/.cache/recently-used.xbel"
+    "$USERHOME/.local/share/RecentDocuments"
+    )
+
+    for f in "${recent_list[@]}"; 
+    do
+        if [[ -f "$f" ]]; 
+        then
+            delpath "$f"
+        elif [[ -d "$f" ]]; 
+        then
+            delpattern "$f" "*.desktop"
+        fi
+    done
+
+    if [[ $CLEANBROWSERS -eq 1 ]]; 
+    then
+        say "→ Cleaning browser caches"
+        if [[ -d "$USERHOME/.mozilla/firefox" ]]; 
+        then
+            while IFS= read -r prof; 
+            do
+                delpath "$prof/cache2"
+                delpath "$prof/startupCache"
+            done < <(find "$USERHOME/.mozilla/firefox" -maxdepth 1 -type d -name "*.default*" 2>/dev/null)
+        fi
+    
+        delpath "$USERHOME/.cache/google-chrome"
+        delpath "$USERHOME/.cache/chromium"
+        delpath "$USERHOME/.config/BraveSoftware/Brave-Browser/Default/Cache"
+    fi
+}
+
+# Function cleanupsystem()
+# Perform system-wide cleanup
+# Return: void
+cleanupsystem() 
+{
+    rootcheck || return 0
+    say "Cleaning system directories"
+
+    delpath "/tmp"
+    delpath "/var/tmp"
+
+    if cmdcheck apt-get; 
+    then
+        run "apt-get autoremove --purge -y"
+        run "apt-get autoclean -y"
+        run "apt-get clean -y"
+    fi
+
+    delpattern "/var/log" "*.gz"
+    delpattern "/var/log" "*.[0-9]"
+
+    if cmdcheck journalctl; 
+    then
+        run "journalctl --vacuum-time=${VACUUMDAYS}d"
+        run "journalctl --vacuum-size=${VACUUMSIZE}"
+    fi
+
+    if cmdcheck snap;
+    then
+        run "snap set system refresh.retain=${KEEPSNAPS}"
+        if [[ $DRYRUN -eq 1 ]]; 
+        then
+            echo "[DRY-RUN] remove disabled snap revisions"
+        else
+            snap list --all 2>/dev/null | awk '/disabled|désactivé/ {print $1, $2}' | while read -r n r;
+            do
+                snap remove --revision="$r" "$n" --purge 2>/dev/null || true
+            done
+        fi
+
+        delpattern "/var/lib/snapd/snaps" "*.old"
+    fi
+
+    if cmdcheck flatpak; 
+    then
+        run "flatpak uninstall --unused -y"
+    fi
+
+    if cmdcheck deborphan; 
+    then
+        if [[ $DRYRUN -eq 1 ]];
+        then
+            echo "[DRY-RUN] deborphan | xargs apt-get remove --purge -y"
+        else
+            deborphan 2>/dev/null | xargs --no-run-if-empty apt-get remove --purge -y
+        fi
+    fi
+
+    if [[ $REMOVEKERNELS -eq 1 ]]; 
+    then
+        local CURRENTKERNEL
+        CURRENTKERNEL="$(uname -r | sed 's/-generic//')"
+        say "→ Removing old kernels (current: $CURRENTKERNEL)"
+        mapfile -t OLDKERNELS < <(dpkg -l | awk '/^ii\s+linux-image-[0-9]/{print $2}' | grep -v "$CURRENTKERNEL" || true)
+        for pkg in "${OLDKERNELS[@]}"; 
+        do
+            run "apt-get remove --purge -y $pkg"
+        done
+        run "update-grub"
+    fi
+}
+
+
+# Function main()
+# Orchestrate execution of the script
+# Return: void
+main() 
+{
+    set -o pipefail
+    if cmdcheck srm;
+    then
+        SRMUSE=1
+    fi
+
+    argsparser "$@"
+    USERHOME="${HOME:-/home/$SUDOUSER}"
+    [[ -n "$SUDOUSER" && -d "/home/$SUDOUSER" ]] && USERHOME="/home/$SUDOUSER"
+
+    showbanner
+    FRONTROOTSIZE=$(freebytes "/")
+    FRONTHOMESIZE=$(freebytes "$USERHOME")
+
+    cleanuphome
+    cleanupsystem
+    showsummary
+}
+
+# Invoke callback
+main "$@"
