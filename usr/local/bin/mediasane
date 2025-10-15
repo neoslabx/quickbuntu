@@ -1,0 +1,524 @@
+#!/usr/bin/env bash
+
+# VERSION - Human-readable script version string.
+# Update this when making user-visible changes.
+VERSION="v1.0"
+
+# DRYRUN - When set to "1", perform a dry run only (no file changes).
+# Shows moves/deletions without modifying files.
+DRYRUN=0
+
+# TARGETDIR - Directory containing media to process.
+# Default: current directory.
+TARGETDIR="."
+
+# RECURSIVE - When set to "1", scan subdirectories recursively.
+# When "0", only scan TARGETDIR (non-recursive).
+RECURSIVE=0
+
+# KEEPDUPLICATE - When "1", move duplicates to ".duplicates" instead of deleting.
+# When "0", delete duplicates (keep the first occurrence).
+KEEPDUPLICATE=0
+
+# DATEFALLBACK - Fallback date (YYYYMMDD) if none found and mtime resolves oddly.
+# Default: current date at runtime; can be overridden here if desired.
+DATEFALLBACK=""
+
+# HASHCMD - Will be detected automatically (sha256sum or shasum -a 256).
+# Leave empty; the script resolves it at runtime.
+HASHCMD=""
+
+# ALLOWEDIMGEXT - Space-separated, case-insensitive list of image extensions.
+# Used to classify IMG- prefix.
+ALLOWEDIMGEXT="jpg jpeg png gif tif tiff bmp webp heic heif"
+
+# ALLOWEDVIDEXT - Space-separated, case-insensitive list of video extensions.
+# Used to classify VID- prefix.
+ALLOWEDVIDEXT="mp4 mov m4v avi mkv 3gp webm"
+
+# GLOBAL COUNTERS (initialized in main) - Associative arrays require bash >=4
+# COUNTERS - per (prefix+date) counter for sequence numbers
+# HASHSEED - hash->kept_path to detect duplicates
+declare -A COUNTERS
+declare -A HASHSEED
+
+# Function say()
+# Simple echo wrapper with -e for consistent formatting
+# Return: <string>
+say()
+{
+    echo -e "$@"
+}
+
+# Function showusage()
+# Print usage and options for the script
+# Return: <string>
+showusage()
+{
+    cat <<EOF
+Media Rename & Dedupe $VERSION
+
+Description:
+  Renames media files (images/videos) to:
+    IMG-YYYYMMDD-00001.jpg  or  VID-YYYYMMDD-00001.mp4
+  Rules:
+    1) Images -> "IMG-", Videos -> "VID-"
+    2) If filename starts with YYYYMMDD, use it for the date
+    3) Else try metadata date (EXIF/QuickTime)
+    4) Else use file modification time
+    5) Else use current date
+    6) Extension forced lowercase
+    7) Duplicates (by SHA-256) removed (or moved if --keep-dupes)
+
+Syntax:
+  ./media_rename_dedupe.sh [options]
+
+Options:
+  --dir PATH         Set target directory (default: .)
+  --recursive        Recurse into subdirectories
+  --dry-run          Preview without changing anything
+  --keep-dupes       Move duplicates to ./.duplicates instead of deleting
+  --fallback YYYYMMDD  Force fallback date if none can be derived
+  -h, --help         Show this help and exit
+  --version          Print version and exit
+
+Examples:
+  ./media_rename_dedupe.sh --dir /path/to/folder
+  ./media_rename_dedupe.sh --dir . --recursive --dry-run
+EOF
+}
+
+# Function showbanner()
+# Print a startup banner summarizing configuration
+# Return: void
+showbanner()
+{
+    say "==============================================="
+    say "Media Rename & Dedupe $VERSION"
+    say "==============================================="
+    say "[+] Directory: ${TARGETDIR}"
+    say "[+] Mode: $([[ $DRYRUN -eq 1 ]] && echo 'dry-run' || echo 'real execution')"
+    [[ $RECURSIVE -eq 1 ]] && say "[+] Recursion: enabled" || say "[+] Recursion: disabled"
+    [[ $KEEPDUPLICATE -eq 1 ]] && say "[+] Duplicates: moved to .duplicates" || say "[+] Duplicates: deleted"
+    [[ -n "$DATEFALLBACK" ]] && say "[+] Fallback date: $DATEFALLBACK"
+    say
+}
+
+# Function argsparser()
+# Parse command-line arguments and set globals
+# Return: void
+argsparser()
+{
+    while [[ $# -gt 0 ]];
+    do
+        case "$1" in
+            --dir) TARGETDIR="${2:-.}"; shift 2 ;;
+            --recursive) RECURSIVE=1; shift ;;
+            --dry-run) DRYRUN=1; shift ;;
+            --keep-dupes) KEEPDUPLICATE=1; shift ;;
+            --fallback) DATEFALLBACK="${2:-}"; shift 2 ;;
+            -h|--help|usage) showusage; exit 0 ;;
+            --version) echo "media_rename_dedupe $VERSION"; exit 0 ;;
+            *) say "[!] Unknown argument: $1"; echo; showusage; exit 1 ;;
+        esac
+    done
+}
+
+# Function reqdeps()
+# Ensure required tools exist (exiftool + hash command)
+# Return: <boolean>
+reqdeps()
+{
+    if ! command -v exiftool >/dev/null 2>&1;
+    then
+        say "ERROR: exiftool is required. Install it (e.g., sudo apt install exiftool)."
+        return 1
+    fi
+
+    if command -v sha256sum >/dev/null 2>&1;
+    then
+        HASHCMD="sha256sum"
+    elif command -v shasum >/dev/null 2>&1;
+    then
+        HASHCMD="shasum -a 256"
+    else
+        say "ERROR: Need sha256sum or shasum for duplicate detection."
+        return 1
+    fi
+
+    return 0
+}
+
+# Function lower()
+# Print lowercase version of the input string
+# Return: <string>
+lower()
+{
+    awk '{print tolower($0)}'
+}
+
+# Function imgext()
+# Check if extension belongs to supported image types
+# Return: <boolean>
+imgext()
+{
+    local extlc="$1"
+    for e in $ALLOWEDIMGEXT;
+    do
+        [[ "$extlc" == "$e" ]] && return 0
+    done
+    return 1
+}
+
+# Function vidext()
+# Check if extension belongs to supported video types
+# Return: <boolean>
+vidext()
+{
+    local extlc="$1"
+    for e in $ALLOWEDVIDEXT;
+    do
+        [[ "$extlc" == "$e" ]] && return 0
+    done
+    return 1
+}
+
+# Function mediatype()
+# Classify media as "image", "video", or "other" based on extension
+# Return: <string>
+mediatype()
+{
+    local extlc="$1"
+    if imgext "$extlc";
+    then
+        echo "image"
+    elif vidext "$extlc";
+     then
+        echo "video"
+    else
+        echo "other"
+    fi
+}
+
+# Function safemove()
+# Move/rename a file (respects DRYRUN)
+# Return: <cmd>
+safemove()
+{
+    local src="$1" dst="$2"
+    if [[ $DRYRUN -eq 1 ]];
+    then
+        say "[DRY-RUN] mv -- \"$src\" \"$dst\""
+    else
+        mv -- "$src" "$dst"
+    fi
+}
+
+# Function ensuredir()
+# Create directory if missing (respects DRYRUN)
+# Return: <cmd>
+ensuredir()
+{
+    local d="$1"
+    [[ -d "$d" ]] && return 0
+    if [[ $DRYRUN -eq 1 ]];
+    then
+        say "[DRY-RUN] mkdir -p -- \"$d\""
+    else
+        mkdir -p -- "$d"
+    fi
+}
+
+# Function safedelete()
+# Remove a file (respects DRYRUN)
+# Return: <cmd>
+safedelete()
+{
+    local f="$1"
+    if [[ $DRYRUN -eq 1 ]];
+    then
+        say "[DRY-RUN] rm -- \"$f\""
+    else
+        rm -- "$f"
+    fi
+}
+
+# Function computehash()
+# Compute SHA-256 hash for a path into stdout
+# Return: <hash>
+computehash()
+{
+    local f="$1"
+    $HASHCMD -- "$f" | awk '{print $1}'
+}
+
+# Function epochtime()
+# Get file mtime in epoch seconds (portable Linux/macOS)
+# Return: <epoch>
+epochtime()
+{
+    local f="$1"
+    if stat --version >/dev/null 2>&1;
+    then
+        stat -c %Y -- "$f"
+    else
+        stat -f %m -- "$f"
+    fi
+}
+
+# Function epochdate()
+# Convert epoch seconds to YYYYMMDD
+# Return: <YYYYMMDD>
+epochdate()
+{
+    local epoch="$1"
+    if date -r 0 >/dev/null 2>&1;
+    then
+        date -r "$epoch" +%Y%m%d
+    else
+        date -d "@$epoch" +%Y%m%d
+    fi
+}
+
+# Function currentdate()
+# Return today's date as YYYYMMDD
+# Return: <YYYYMMDD>
+currentdate()
+{
+    date +%Y%m%d
+}
+
+# Function dateprefix()
+# If filename starts with 8 digits, return YYYYMMDD; else empty
+# Return: <YYYYMMDD|string-empty>
+dateprefix()
+{
+    local base="$1"
+    if [[ "$base" =~ ^([0-9]{8}) ]];
+    then
+        echo "${BASHREMATCH[1]}"
+    else
+        echo ""
+    fi
+}
+
+# Function datemeta()
+# Attempt to read a date from metadata using exiftool (formatted YYYYMMDD)
+# Return: <YYYYMMDD|string-empty>
+datemeta()
+{
+    local f="$1"
+    local v
+    v="$(exiftool -s -S -d '%Y%m%d' -DateTimeOriginal -CreateDate -MediaCreateDate -FileModifyDate -- "$f" 2>/dev/null | head -n1 || true)"
+    [[ "$v" =~ ^[0-9]{8}$ ]] && echo "$v" || echo ""
+}
+
+# Function datemtime()
+# Derive date from file modification time (YYYYMMDD)
+# Return: <YYYYMMDD>
+datemtime()
+{
+    local f="$1"
+    local ep
+    ep="$(epochtime "$f")"
+    epochdate "$ep"
+}
+
+# Function resolvseg()
+# Resolve the date following precedence rules; fallback to DATEFALLBACK/today
+# Return: <YYYYMMDD>
+resolvseg()
+{
+    local path="$1"
+    local name base ext
+    name="$(basename -- "$path")"
+    base="${name%.*}"
+
+    local d=""
+    d="$(dateprefix "$base")"
+    if [[ -z "$d" ]];
+    then
+        d="$(datemeta "$path")"
+    fi
+    if [[ -z "$d" ]];
+    then
+        d="$(datemtime "$path")"
+    fi
+    if [[ -z "$d" ]];
+    then
+        d="${DATEFALLBACK:-$(currentdate)}"
+    fi
+
+    echo "$d"
+}
+
+# Function nextseq()
+# Increment and return a zero-padded sequence for a (prefix+date) key
+# Return: <00001>
+nextseq()
+{
+    local key="$1"
+    if [[ -z "${COUNTERS[$key]+x}" ]];
+    then
+        COUNTERS[$key]=0
+    fi
+    COUNTERS[$key]=$(( COUNTERS[$key] + 1 ))
+    printf "%05d" "${COUNTERS[$key]}"
+}
+
+# Function namegen()
+# Build a unique destination path based on prefix/date/sequence & lowercase extension
+# Return: <newpath>
+namegen()
+{
+    local dir="$1" path="$2" prefix="$3" segdate="$4" extlc="$5"
+
+    local key="${prefix}${segdate}"
+    local seq new_name candidate
+    while :; 
+    do
+        seq="$(nextseq "$key")"
+        new_name="${prefix}${segdate}-${seq}.${extlc}"
+        candidate="${dir}/${new_name}"
+        [[ ! -e "$candidate" ]] && { echo "$candidate"; return 0; }
+    done
+}
+
+# Function classify()
+# Decide IMG-/VID- prefix from extension
+# Return: <prefix|empty>
+classify()
+{
+    local extlc="$1"
+    local t
+    t="$(mediatype "$extlc")"
+    case "$t" in
+        image) echo "IMG-" ;;
+        video) echo "VID-" ;;
+        *) echo "" ;;
+    esac
+}
+
+# Function checkduplicate()
+# Handle duplicates by either deleting or moving to .duplicates
+# Return: void
+checkduplicate()
+{
+    local path="$1"
+    if [[ $KEEPDUPLICATE -eq 1 ]];
+    then
+        local d="${TARGETDIR%/}/.duplicates"
+        ensuredir "$d"
+        local base="$(basename -- "$path")"
+        local dst="${d}/${base}"
+        local n=0
+        while [[ -e "$dst" ]];
+        do
+            n=$((n+1))
+            dst="${d}/${base}.${n}"
+        done
+        safemove "$path" "$dst"
+    else
+        safedelete "$path"
+    fi
+}
+
+# Function enumfiles()
+# Emit NUL-separated list of candidate files to process
+# Return: <list to stdout>
+enumfiles()
+{
+    local d="$1"
+    local depth_args=(-maxdepth 1)
+    [[ $RECURSIVE -eq 1 ]] && depth_args=()
+    find "$d" "${depth_args[@]}" -type f -print0 2>/dev/null
+}
+
+# Function procfile()
+# Process a single file: dedupe, derive name, and rename accordingly
+# Return: void
+procfile()
+{
+    local path="$1"
+    local dir file base ext extlc prefix segdate newpath
+    dir="$(dirname -- "$path")"
+    file="$(basename -- "$path")"
+    base="${file%.*}"
+    ext="${file##*.}"
+    extlc="$(printf '%s' "$ext" | lower)"
+
+    # Classify
+    prefix="$(classify "$extlc")"
+    [[ -z "$prefix" ]] && return 0
+
+    # Duplicate detection
+    local h
+    h="$(computehash "$path")"
+    if [[ -n "${HASHSEED[$h]+x}" ]];
+    then
+        say "DUPLICATE: \"$path\" matches \"${HASHSEED[$h]}\""
+        checkduplicate "$path"
+        return 0
+    else
+        HASHSEED["$h"]="$path"
+    fi
+
+    segdate="$(resolvseg "$path")"
+    newpath="$(namegen "$dir" "$path" "$prefix" "$segdate" "$extlc")"
+
+    if [[ "$path" == "$newpath" ]];
+    then
+        say "SKIP (already named): \"$path\""
+        return 0
+    fi
+
+    say "RENAME: \"$file\" -> \"$(basename -- "$newpath")\""
+    safemove "$path" "$newpath"
+    HASHSEED["$h"]="$newpath"
+}
+
+# Function execpipe()
+# Enumerate and process all media files in TARGETDIR (optional recursion)
+# Return: void
+execpipe()
+{
+    local count=0
+    while IFS= read -r -d '' p;
+    do
+        local ext="${p##*.}"
+        local extlc="$(printf '%s' "$ext" | lower)"
+        if imgext "$extlc" || vidext "$extlc";
+        then
+            procfile "$p"
+            count=$((count+1))
+        fi
+    done < <(enumfiles "$TARGETDIR")
+    say "Done. Processed: $count files."
+}
+
+# Function main()
+# Orchestrate execution of the script
+# Return: void
+main()
+{
+    # Parse args and prep
+    argsparser "$@"
+    [[ -z "$DATEFALLBACK" ]] && DATEFALLBACK="$(currentdate)"
+
+    # Validate target
+    if [[ ! -d "$TARGETDIR" ]]; then
+        say "ERROR: Directory not found: $TARGETDIR"
+        exit 1
+    fi
+
+    # Deps
+    if ! reqdeps; then
+        exit 1
+    fi
+
+    showbanner
+    execpipe
+}
+
+# Invoke callback
+main "$@"

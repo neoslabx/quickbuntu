@@ -67,8 +67,8 @@ This step equips your system with a wide range of developer utilities and produc
 
 ```bash
 sudo apt -y install apt-transport-https build-essential ca-certificates curl dirb dnsenum easytag evolution evolution-ews filezilla \
-gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap pkg-config protobuf-compiler secure-delete \
-shutter software-properties-common sqlitebrowser sqlmap subversion testssl.sh wapiti wfuzz wget whatweb whois zsh
+flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap pkg-config protobuf-compiler secure-delete \
+shutter software-properties-common sqlitebrowser sqlmap subversion testssl.sh trash-cli wapiti wfuzz wget whatweb whois zsh
 ```
 
 * * *
@@ -236,8 +236,11 @@ JetBrains Toolbox simplifies managing IDEs like IntelliJ IDEA, PyCharm, WebStorm
 ```bash
 sudo apt -y update
 cd ~/Downloads
-tar -xzf jetbrains-toolbox-*.tar.gz --one-top-level=jetbrains --strip-components 1
-cd jetbrains/bin/ && ./jetbrains-toolbox &> /dev/null &
+tar -xzf jetbrains-toolbox-*.tar.gz
+mkdir -p $HOME/.local/share/JetBrains/Toolbox/
+mv ~/Downloads/jetbrains-toolbox-*/bin $HOME/.local/share/JetBrains/Toolbox/
+cd $HOME/.local/share/JetBrains/Toolbox/bin
+./jetbrains-toolbox &> /dev/null &
 cd $HOME
 ```
 
@@ -257,7 +260,21 @@ cd $HOME
 
 * * *
 
-## 20. Customize the Terminal (Zsh, Powerlevel10k, and Plugins)
+## 20. Clone Github Repository
+
+This step retrieves the Quickbuntu repository from GitHub, which contains essential tools and scripts developed by NeosLab to automate and optimize Ubuntu setups. The repository includes BlitzClean, a maintenance utility that helps clean, update, and optimize system performance with a single command.
+
+```bash
+cd /tmp/
+git clone https://github.com/neoslabx/quickbuntu
+sudo mv /tmp/quickbuntu/usr/local/bin/blitzclean /usr/local/bin/
+sudo chown +x /usr/local/bin/blitzclean
+cd $HOME
+```
+
+* * *
+
+## 21. Customize the Terminal (Zsh, Powerlevel10k, and Plugins)
 
 A developer’s terminal is a key productivity tool. This customization replaces the default Bash shell with **Zsh**, adds the **Oh My Zsh** framework, and enhances usability with features like autosuggestions and syntax highlighting. The **Powerlevel10k** theme adds a professional, informative prompt with Git, Python, and system status indicators. Together, these tweaks create a fast, elegant, and feature-rich command-line experience.
 
@@ -304,7 +321,7 @@ cd $HOME
 
 * * *
 
-## 21. Configure Powerlevel10k
+## 22. Configure Powerlevel10k
 
 After installation, configure the **Powerlevel10k** theme to match your preferences. The configuration wizard lets you adjust icons, color schemes, segment styles, and prompt behavior. Taking the time to fine-tune this step enhances readability and helps organize command-line information efficiently.
 
@@ -314,7 +331,7 @@ p10k configure
 
 * * *
 
-## 22. Final System Update and Cleanup
+## 23. Final System Update and Cleanup
 
 To conclude, perform another full system update and cleanup. This ensures that all installed packages are up to date, redundant files are removed, and the system is left in a stable and optimized state. Running this command post-setup keeps the environment lean, secure, and ready for immediate use.
 
