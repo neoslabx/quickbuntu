@@ -2,7 +2,7 @@
 
 # VERSION - Human-readable script version string.
 # Update this when making user-visible changes.
-VERSION="v1.0"
+VERSION="v1.4"
 
 # DRYRUN - When set to "1", perform a dry run only (no file changes).
 # Shows moves/deletions without modifying files.
@@ -28,6 +28,18 @@ DATEFALLBACK=""
 # Leave empty; the script resolves it at runtime.
 HASHCMD=""
 
+# OUTDIR - Optional output directory for renamed files.
+# When set, all renamed media are placed here (duplicates handled accordingly).
+OUTDIR=""
+
+# Timeouts (seconds) and tools
+# TIMEOUTMETA - max seconds for exiftool metadata read
+# TIMEOUTHASH - max seconds for sha256 computation
+# TIMEOUTBIN  - 'timeout' command if available (GNU coreutils)
+TIMEOUTMETA=10
+TIMEOUTHASH=60
+TIMEOUTBIN=""
+
 # ALLOWEDIMGEXT - Space-separated, case-insensitive list of image extensions.
 # Used to classify IMG- prefix.
 ALLOWEDIMGEXT="jpg jpeg png gif tif tiff bmp webp heic heif"
@@ -42,6 +54,20 @@ ALLOWEDVIDEXT="mp4 mov m4v avi mkv 3gp webm"
 declare -A COUNTERS
 declare -A HASHSEED
 
+# Track max sequence discovered on-disk per key (prefix+date)
+declare -A MAXSEQ
+
+# SUMMARY counters
+PROCESSED=0
+RENAMEDCK=0
+RENAMED=0
+SKIPALREADY=0
+DUPESDELETED=0
+DUPESMOVED=0
+ERRORS=0
+TIMEOUTSMETA=0
+TIMEOUTSHASH=0
+
 # Function say()
 # Simple echo wrapper with -e for consistent formatting
 # Return: <string>
@@ -50,42 +76,12 @@ say()
     echo -e "$@"
 }
 
-# Function showusage()
-# Print usage and options for the script
+# Function linebreak()
+# Print a well formatted line break
 # Return: <string>
-showusage()
+linebreak() 
 {
-    cat <<EOF
-Media Rename & Dedupe $VERSION
-
-Description:
-  Renames media files (images/videos) to:
-    IMG-YYYYMMDD-00001.jpg  or  VID-YYYYMMDD-00001.mp4
-  Rules:
-    1) Images -> "IMG-", Videos -> "VID-"
-    2) If filename starts with YYYYMMDD, use it for the date
-    3) Else try metadata date (EXIF/QuickTime)
-    4) Else use file modification time
-    5) Else use current date
-    6) Extension forced lowercase
-    7) Duplicates (by SHA-256) removed (or moved if --keep-dupes)
-
-Syntax:
-  ./media_rename_dedupe.sh [options]
-
-Options:
-  --dir PATH         Set target directory (default: .)
-  --recursive        Recurse into subdirectories
-  --dry-run          Preview without changing anything
-  --keep-dupes       Move duplicates to ./.duplicates instead of deleting
-  --fallback YYYYMMDD  Force fallback date if none can be derived
-  -h, --help         Show this help and exit
-  --version          Print version and exit
-
-Examples:
-  ./media_rename_dedupe.sh --dir /path/to/folder
-  ./media_rename_dedupe.sh --dir . --recursive --dry-run
-EOF
+    printf '%0.s-' {1..100}; echo
 }
 
 # Function showbanner()
@@ -93,15 +89,75 @@ EOF
 # Return: void
 showbanner()
 {
-    say "==============================================="
+    clear 2>/dev/null || true
+    printf '%0.s=' {1..60}; echo
     say "Media Rename & Dedupe $VERSION"
-    say "==============================================="
+    say "Mediasane $VERSION - Linux Medias Organizer Script"
+    printf '%0.s=' {1..60}; echo
+
     say "[+] Directory: ${TARGETDIR}"
     say "[+] Mode: $([[ $DRYRUN -eq 1 ]] && echo 'dry-run' || echo 'real execution')"
+
     [[ $RECURSIVE -eq 1 ]] && say "[+] Recursion: enabled" || say "[+] Recursion: disabled"
     [[ $KEEPDUPLICATE -eq 1 ]] && say "[+] Duplicates: moved to .duplicates" || say "[+] Duplicates: deleted"
+    [[ -n "$OUTDIR" ]] && say "[+] Output dir: $OUTDIR"
     [[ -n "$DATEFALLBACK" ]] && say "[+] Fallback date: $DATEFALLBACK"
+    sleep 1s
+}
+
+# Function showusage()
+# Print usage and options for the script
+# Return: <string>
+showusage()
+{
+    printf '%0.s=' {1..60}; echo
+    say "Usage Menu"
+    printf '%0.s=' {1..60}; echo
+
+    say "Description:"
+    say "  Renames media files (images/videos) to:"
+    say "    IMG-YYYYMMDD-00001.jpg  or  VID-YYYYMMDD-00001.mp4"
     say
+    say "Syntax:"
+    say "  mediasane [options]"
+    say
+    say "Options:"
+    say "  --dir PATH               Set target directory (default: .)"
+    say "  --recursive              Recurse into subdirectories"
+    say "  --dry-run                Preview without changing anything"
+    say "  --keep-dupes             Move duplicates to ./.duplicates instead of deleting"
+    say "  --fallback YYYYMMDD      Force fallback date if none can be derived"
+    say "  --outdir PATH            Write renamed media into specified output directory"
+    say "  --meta-timeout SEC       Override metadata timeout (default: 10)"
+    say "  --hash-timeout SEC       Override hash timeout (default: 60)"
+    say
+    say "Help/Info:"
+    say "  -h, --help, usage        Show this menu and exit."
+    say "  --version                Print version and exit."
+    say
+    say "Examples:"
+    say "  mediasane --dir /path/to/folder"
+    say "  mediasane --dir . --recursive --dry-run"
+    say "  mediasane --dir ./input --outdir ./renamed"
+}
+
+# Function showsummary()
+# Print summary at end of execution
+# Return: void
+showsummary()
+{
+    printf '%0.s=' {1..60}; echo
+    say "SUMMARY"
+    printf '%0.s=' {1..60}; echo
+    say "Processed:     $PROCESSED"
+    say "Renamed:       $RENAMED"
+    say "Skipped same:  $SKIPALREADY"
+    say "Dupes deleted: $DUPESDELETED"
+    say "Dupes moved:   $DUPESMOVED"
+    say "Errors:        $ERRORS"
+    say "Timeouts meta: $TIMEOUTSMETA"
+    say "Timeouts hash: $TIMEOUTSHASH"
+    printf '%0.s=' {1..60}; echo
 }
 
 # Function argsparser()
@@ -117,6 +173,9 @@ argsparser()
             --dry-run) DRYRUN=1; shift ;;
             --keep-dupes) KEEPDUPLICATE=1; shift ;;
             --fallback) DATEFALLBACK="${2:-}"; shift 2 ;;
+            --outdir) OUTDIR="${2:-}"; shift 2 ;;
+            --meta-timeout) TIMEOUTMETA="${2:-10}"; shift 2 ;;
+            --hash-timeout) TIMEOUTHASH="${2:-60}"; shift 2 ;;
             -h|--help|usage) showusage; exit 0 ;;
             --version) echo "media_rename_dedupe $VERSION"; exit 0 ;;
             *) say "[!] Unknown argument: $1"; echo; showusage; exit 1 ;;
@@ -144,6 +203,12 @@ reqdeps()
     else
         say "ERROR: Need sha256sum or shasum for duplicate detection."
         return 1
+    fi
+
+    if command -v timeout >/dev/null 2>&1; then
+        TIMEOUTBIN="timeout"
+    else
+        TIMEOUTBIN=""  # we’ll run without hard timeout if unavailable
     fi
 
     return 0
@@ -210,7 +275,13 @@ safemove()
     then
         say "[DRY-RUN] mv -- \"$src\" \"$dst\""
     else
-        mv -- "$src" "$dst"
+        if mv -- "$src" "$dst"; then
+            return 0
+        else
+            say "ERROR: mv failed: $src -> $dst"
+            ERRORS=$((ERRORS+1))
+            return 1
+        fi
     fi
 }
 
@@ -225,7 +296,7 @@ ensuredir()
     then
         say "[DRY-RUN] mkdir -p -- \"$d\""
     else
-        mkdir -p -- "$d"
+        mkdir -p -- "$d" || { say "ERROR: cannot create dir $d"; ERRORS=$((ERRORS+1)); return 1; }
     fi
 }
 
@@ -239,7 +310,26 @@ safedelete()
     then
         say "[DRY-RUN] rm -- \"$f\""
     else
-        rm -- "$f"
+        if rm -- "$f"; then :; else
+            say "ERROR: rm failed: $f"
+            ERRORS=$((ERRORS+1))
+        fi
+    fi
+}
+
+# Function runtimeout()
+# Helper to run a command with timeout if available
+# Return: <seconds> <cmd...>
+runtimeout() 
+{
+    local secs="$1"; shift
+    if [[ -n "$TIMEOUTBIN" && "$secs" -gt 0 ]];
+    then
+        $TIMEOUTBIN "$secs" "$@"
+        return $?
+    else
+        "$@"
+        return $?
     fi
 }
 
@@ -249,7 +339,22 @@ safedelete()
 computehash()
 {
     local f="$1"
-    $HASHCMD -- "$f" | awk '{print $1}'
+    local out
+    if ! out="$(runtimeout "$TIMEOUTHASH" $HASHCMD -- "$f")"; then
+        say "[TIMEOUT] hash on \"$f\" — falling back to size@mtime weak key"
+        TIMEOUTSHASH=$((TIMEOUTSHASH+1))
+        # Weak key fallback: size@mtime to still dedupe within this run
+        local sz mt
+        if stat --version >/dev/null 2>&1; then
+            sz="$(stat -c %s -- "$f")"
+        else
+            sz="$(stat -f %z -- "$f")"
+        fi
+        mt="$(epochtime "$f")"
+        echo "weak-${sz}@${mt}"
+        return 0
+    fi
+    echo "$out" | awk '{print $1}'
 }
 
 # Function epochtime()
@@ -308,9 +413,18 @@ dateprefix()
 datemeta()
 {
     local f="$1"
-    local v
-    v="$(exiftool -s -S -d '%Y%m%d' -DateTimeOriginal -CreateDate -MediaCreateDate -FileModifyDate -- "$f" 2>/dev/null | head -n1 || true)"
-    [[ "$v" =~ ^[0-9]{8}$ ]] && echo "$v" || echo ""
+    local v=""
+    # [FIX] Use fast and robust flags; guard with timeout
+    # -fast2 : faster metadata read; -q -q : quiet; -m : ignore minor errors
+    # -api LargeFileSupport=1 : handle very large files
+    if v="$(runtimeout "$TIMEOUTMETA" exiftool -s -S -q -q -m -api LargeFileSupport=1 -fast2 -d '%Y%m%d' \
+            -DateTimeOriginal -CreateDate -MediaCreateDate -FileModifyDate -- "$f" 2>/dev/null | head -n1)"; then
+        [[ "$v" =~ ^[0-9]{8}$ ]] && echo "$v" || echo ""
+    else
+        say "[TIMEOUT] exiftool on \"$f\" — using mtime/fallback"
+        TIMEOUTSMETA=$((TIMEOUTSMETA+1))
+        echo ""
+    fi
 }
 
 # Function datemtime()
@@ -366,14 +480,48 @@ nextseq()
     printf "%05d" "${COUNTERS[$key]}"
 }
 
+# Function initkey()
+# Scan destination directory once to initialize the starting sequence (max existing + 1) for a given key
+# Return: void (updates MAXSEQ[key] and COUNTERS[key])
+initkey()
+{
+    local destdir="$1" prefix="$2" segdate="$3"
+    local key="${prefix}${segdate}"
+
+    # If already initialized, nothing to do
+    if [[ -n "${MAXSEQ[$key]+x}" ]]; then
+        return 0
+    fi
+
+    local maxseq=0
+    # Scan existing files once; match: PREFIXYYYYMMDD-00000.anyext
+    # We avoid 'ls' parsing issues; use find with -maxdepth 1.
+    while IFS= read -r -d '' f; do
+        local bn="$(basename -- "$f")"
+        # Extract 5-digit sequence between '-' and the next '.'
+        if [[ "$bn" =~ ^${prefix}${segdate}-([0-9]{5})\..+$ ]]; then
+            local n="${BASH_REMATCH[1]}"
+            # strip leading zeros safely
+            n=$((10#$n))
+            (( n > maxseq )) && maxseq="$n"
+        fi
+    done < <(find "$destdir" -maxdepth 1 -type f -name "${prefix}${segdate}-*" -print0 2>/dev/null)
+
+    MAXSEQ[$key]="$maxseq"
+    # Initialize COUNTERS at maxseq so nextseq() returns maxseq+1
+    COUNTERS[$key]="$maxseq"
+}
+
 # Function namegen()
 # Build a unique destination path based on prefix/date/sequence & lowercase extension
 # Return: <newpath>
 namegen()
 {
-    local dir="$1" path="$2" prefix="$3" segdate="$4" extlc="$5"
+    local dir="$1" prefix="$2" segdate="$3" extlc="$4"
 
     local key="${prefix}${segdate}"
+    initkey "$dir" "$prefix" "$segdate"
+
     local seq new_name candidate
     while :; 
     do
@@ -381,6 +529,7 @@ namegen()
         new_name="${prefix}${segdate}-${seq}.${extlc}"
         candidate="${dir}/${new_name}"
         [[ ! -e "$candidate" ]] && { echo "$candidate"; return 0; }
+        # If exists (rare race), loop continues; with init at max+1, this is usually O(1)
     done
 }
 
@@ -407,7 +556,8 @@ checkduplicate()
     local path="$1"
     if [[ $KEEPDUPLICATE -eq 1 ]];
     then
-        local d="${TARGETDIR%/}/.duplicates"
+        local root="${OUTDIR:-$TARGETDIR}"    # [FIX] place .duplicates beside output when using --outdir
+        local d="${root%/}/.duplicates"
         ensuredir "$d"
         local base="$(basename -- "$path")"
         local dst="${d}/${base}"
@@ -417,21 +567,22 @@ checkduplicate()
             n=$((n+1))
             dst="${d}/${base}.${n}"
         done
-        safemove "$path" "$dst"
+        safemove "$path" "$dst" && DUPESMOVED=$((DUPESMOVED+1))
     else
-        safedelete "$path"
+        safedelete "$path" && DUPESDELETED=$((DUPESDELETED+1))
     fi
 }
 
 # Function enumfiles()
 # Emit NUL-separated list of candidate files to process
 # Return: <list to stdout>
+# [FIX] snapshot stable, exclude .duplicates
 enumfiles()
 {
     local d="$1"
     local depth_args=(-maxdepth 1)
     [[ $RECURSIVE -eq 1 ]] && depth_args=()
-    find "$d" "${depth_args[@]}" -type f -print0 2>/dev/null
+    find "$d" "${depth_args[@]}" -type d -name ".duplicates" -prune -o -type f -print0 2>/dev/null
 }
 
 # Function procfile()
@@ -464,16 +615,23 @@ procfile()
     fi
 
     segdate="$(resolvseg "$path")"
-    newpath="$(namegen "$dir" "$path" "$prefix" "$segdate" "$extlc")"
+
+    # use OUTDIR if defined
+    local destdir="${OUTDIR:-$dir}"
+    ensuredir "$destdir"
+
+    newpath="$(namegen "$destdir" "$prefix" "$segdate" "$extlc")"
 
     if [[ "$path" == "$newpath" ]];
     then
         say "SKIP (already named): \"$path\""
+        SKIPALREADY=$((SKIPALREADY+1))
         return 0
     fi
 
     say "RENAME: \"$file\" -> \"$(basename -- "$newpath")\""
-    safemove "$path" "$newpath"
+    linebreak
+    safemove "$path" "$newpath" && RENAMED=$((RENAMED+1))
     HASHSEED["$h"]="$newpath"
 }
 
@@ -482,18 +640,27 @@ procfile()
 # Return: void
 execpipe()
 {
-    local count=0
-    while IFS= read -r -d '' p;
+    local -a FILES=()
+    while IFS= read -r -d '' p; do FILES+=("$p"); done < <(enumfiles "$TARGETDIR")
+
+    local total="${#FILES[@]}"
+    say "[+] Snapshot: $total files."
+    say
+    local idx=0
+
+    for p in "${FILES[@]}";
     do
+        idx=$((idx+1))
+        PROCESSED=$((PROCESSED+1))
         local ext="${p##*.}"
         local extlc="$(printf '%s' "$ext" | lower)"
         if imgext "$extlc" || vidext "$extlc";
         then
+            say "[${idx}/${total}] $p"
             procfile "$p"
-            count=$((count+1))
         fi
-    done < <(enumfiles "$TARGETDIR")
-    say "Done. Processed: $count files."
+    done
+    say "Done. Processed: $PROCESSED files."
 }
 
 # Function main()
@@ -501,23 +668,36 @@ execpipe()
 # Return: void
 main()
 {
-    # Parse args and prep
+    local argc="$#"
     argsparser "$@"
+
+    if [[ $argc -eq 0 ]];
+    then
+        showusage
+        exit 0
+    fi
+
     [[ -z "$DATEFALLBACK" ]] && DATEFALLBACK="$(currentdate)"
 
-    # Validate target
-    if [[ ! -d "$TARGETDIR" ]]; then
+    if [[ ! -d "$TARGETDIR" ]];
+    then
         say "ERROR: Directory not found: $TARGETDIR"
         exit 1
     fi
 
-    # Deps
-    if ! reqdeps; then
+    if [[ -n "$OUTDIR" ]];
+    then
+        ensuredir "$OUTDIR" || exit 1
+    fi
+
+    if ! reqdeps;
+    then
         exit 1
     fi
 
     showbanner
     execpipe
+    showsummary
 }
 
 # Invoke callback

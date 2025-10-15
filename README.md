@@ -66,7 +66,7 @@ sudo apt -y install fonts-dejavu fonts-powerline
 This step equips your system with a wide range of developer utilities and productivity tools. From compilers (`build-essential`) to network analysis utilities (`nmap`, `wfuzz`, `nikto`), this set ensures your workstation can handle web development, cybersecurity tasks, and general system maintenance. Having them pre-installed means less downtime when switching between project types or debugging different environments.
 
 ```bash
-sudo apt -y install apt-transport-https build-essential ca-certificates curl dirb dnsenum easytag evolution evolution-ews filezilla \
+sudo apt -y install apt-transport-https build-essential ca-certificates curl dirb dnsenum easytag evolution evolution-ews exiftool filezilla \
 flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap pkg-config protobuf-compiler secure-delete \
 shutter software-properties-common sqlitebrowser sqlmap subversion testssl.sh trash-cli wapiti wfuzz wget whatweb whois zsh
 ```
@@ -339,6 +339,17 @@ To conclude, perform another full system update and cleanup. This ensures that a
 sudo apt -y update && sudo apt -y upgrade && sudo apt -y dist-upgrade
 sudo apt -y remove && sudo apt -y autoremove
 sudo apt -y clean && sudo apt -y autoclean
+```
+
+* * *
+
+## 24. Change SSH Port
+
+Another thing that can be done on your machine is configuring the SSH service's listening port. It is set to port 22 by default, therefore if you are running a server, some hacking robots will target this port. Modifying this setting by using a different port is a simple measure to harden your server against automated attacks.
+
+```bash
+sudo sed -i 's/^#Port 22$/Port 49622/' /etc/ssh/sshd_config
+sudo systemctl restart sshd
 ```
 
 * * *

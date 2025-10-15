@@ -44,6 +44,22 @@ BACKROOTSIZE=""
 # Used with FRONTHOMESIZE to compute reclaimed space.
 BACKHOMESIZE=""
 
+# Function say()
+# Execute echo with -e for consistent output formatting
+# Return: <string>
+say() 
+{
+    echo -e "$@"
+}
+
+# Function linebreak()
+# Print a well formatted line break
+# Return: <string>
+linebreak() 
+{
+    printf '%0.s-' {1..100}; echo
+}
+
 # Function showbanner()
 # Print the startup banner with current configuration and capability summary
 # Return: void
@@ -53,6 +69,7 @@ showbanner()
     printf '%0.s=' {1..60}; echo
     say "BlitzClean $VERSION - The Ultimate Ubuntu Cleanup Script"
     printf '%0.s=' {1..60}; echo
+    
     say "[+] Mode $([[ $DRYRUN -eq 1 ]] && echo 'dry-run (listing only)' || echo 'real execution')"
 
     [[ $CLEARBROWSERS -eq 1 ]] && say "[+] Browser cache cleaning enabled"
@@ -60,7 +77,7 @@ showbanner()
 
     say "[+] Journal retention ${VACUUMDAYS} days/${VACUUMSIZE} max size"
     userpriv && say "[+] Privileges root (full cleanup)" || say "[+] Privileges user-only cleanup"
-    echo
+    say
     sleep 1s
 }
 
@@ -72,32 +89,32 @@ showusage()
     printf '%0.s=' {1..60}; echo
     say "Usage Menu"
     printf '%0.s=' {1..60}; echo
-    echo "Description:"
-    echo "  Safely reclaim disk space on Ubuntu by cleaning caches, temp files,"
-    echo "  logs, Snap/Flatpak leftovers, browser caches (optional), recent-docs"
-    echo "  history, trash, thumbnails, and optionally old kernels."
-    echo
-    echo "Syntax:"
-    echo "  ./blitzclean [OPTIONS]"
-    echo
-    echo "Core Options:"
-    echo "  --dry-run           Preview EXACT files/paths that would be deleted."
-    echo "                      Nothing is removed (recommended first run)."
-    echo "  --all               Enable all optional features (browsers + old kernels)."
-    echo "  --browsers          Clean browser caches (Firefox/Chrome/Chromium/Brave)."
-    echo "  --kernels           Remove old linux-image packages (keeps current kernel)."
-    echo "  --vacuum-days N     Journal retention by age (default: 7)."
-    echo "  --vacuum-size SIZE  Journal retention by size (default: 100M)."
-    echo "  --keep-snaps N      Keep N Snap revisions (default: 2)."
-    echo
-    echo "Help & Info:"
-    echo "  -h, --help, usage   Show this menu and exit."
-    echo "  --version           Print version and exit."
-    echo
-    echo "Examples:"
-    echo "  blitzclean --dry-run"
-    echo "  sudo blitzclean --all"
-    echo "  sudo blitzclean --all --vacuum-days 7 --vacuum-size 100M --keep-snaps 2"
+
+    say "Description:"
+    say "  Safely reclaim disk space on Ubuntu by cleaning caches, temp files,"
+    say "  logs, Snap/Flatpak leftovers, browser caches (optional), recent-docs"
+    say "  history, trash, thumbnails, and optionally old kernels."
+    say
+    say "Syntax:"
+    say "  blitzclean [options]"
+    say
+    say "Options:"
+    say "  --dry-run                 Preview EXACT files/paths that would be deleted."
+    say "  --all                     Enable all optional features (browsers + old kernels)."
+    say "  --browsers                Clean browser caches (Firefox/Chrome/Chromium/Brave)."
+    say "  --kernels                 Remove old linux-image packages (keeps current kernel)."
+    say "  --vacuum-days N           Journal retention by age (default: 7)."
+    say "  --vacuum-size SIZE        Journal retention by size (default: 100M)."
+    say "  --keep-snaps N            Keep N Snap revisions (default: 2)."
+    say
+    say "Help/Info:"
+    say "  -h, --help, usage         Show this menu and exit."
+    say "  --version                 Print version and exit."
+    say
+    say "Examples:"
+    say "  blitzclean --dry-run"
+    say "  sudo blitzclean --all"
+    say "  sudo blitzclean --all --vacuum-days 7 --vacuum-size 100M --keep-snaps 2"
 }
 
 # Function showsummary()
@@ -132,20 +149,42 @@ showsummary()
     fi
 }
 
+# Function argsparser()
+# Parse the arguments passed into the script
+# Return: void
+argsparser() 
+{
+    [[ $# -eq 0 ]] && return 0
+
+    while [[ $# -gt 0 ]];
+    do
+        case "$1" in
+          --dry-run) DRYRUN=1; shift ;;
+          --browsers) CLEARBROWSERS=1; shift ;;
+          --kernels) CLEARKERNELS=1; shift ;;
+          --vacuum-days) VACUUMDAYS="${2:-7}"; shift 2 ;;
+          --vacuum-size) VACUUMSIZE="${2:-100M}"; shift 2 ;;
+          --keep-snaps) KEEPSNAPS="${2:-2}"; shift 2 ;;
+          --all) CLEARALL=1; shift ;;
+          -h|--help|usage) showusage; exit 0 ;;
+          --version) echo "BlitzClean v$VERSION"; exit 0 ;;
+          *) echo "Unknown argument: $1"; echo; showusage; exit 1 ;;
+        esac
+    done
+
+    if [[ $CLEARALL -eq 1 ]];
+    then
+        CLEARBROWSERS=1
+        CLEARKERNELS=1
+    fi
+}
+
 # Function rootcheck()
 # Check if running as root (EUID=0)
 # Return: <boolean>
 rootcheck() 
 {
     [[ $EUID -eq 0 ]]
-}
-
-# Function say()
-# Execute echo with -e for consistent output formatting
-# Return: <string>
-say() 
-{
-    echo -e "$@"
 }
 
 # Function run()
@@ -159,14 +198,6 @@ run()
     else
         eval "$*"
     fi
-}
-
-# Function linebreak()
-# Print a well formatted line break
-# Return: <string>
-linebreak() 
-{
-    printf '%0.s-' {1..100}; echo
 }
 
 # Function userpriv()
@@ -340,36 +371,6 @@ delpattern()
         printf "%s\n" "${files[@]}"
     else
         printf '%s\0' "${files[@]}" | xargs -0 -r rm -f
-    fi
-}
-
-# Function argsparser()
-# Parse the arguments passed into the script
-# Return: void
-argsparser() 
-{
-    [[ $# -eq 0 ]] && return 0
-
-    while [[ $# -gt 0 ]];
-    do
-        case "$1" in
-          --dry-run) DRYRUN=1; shift ;;
-          --browsers) CLEARBROWSERS=1; shift ;;
-          --kernels) CLEARKERNELS=1; shift ;;
-          --vacuum-days) VACUUMDAYS="${2:-7}"; shift 2 ;;
-          --vacuum-size) VACUUMSIZE="${2:-100M}"; shift 2 ;;
-          --keep-snaps) KEEPSNAPS="${2:-2}"; shift 2 ;;
-          --all) CLEARALL=1; shift ;;
-          -h|--help|usage) showusage; exit 0 ;;
-          --version) echo "BlitzClean v$VERSION"; exit 0 ;;
-          *) echo "Unknown argument: $1"; echo; showusage; exit 1 ;;
-        esac
-    done
-
-    if [[ $CLEARALL -eq 1 ]];
-    then
-        CLEARBROWSERS=1
-        CLEARKERNELS=1
     fi
 }
 
