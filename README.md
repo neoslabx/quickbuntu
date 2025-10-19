@@ -268,7 +268,9 @@ This step retrieves the Quickbuntu repository from GitHub, which contains essent
 cd /tmp/
 git clone https://github.com/neoslabx/quickbuntu
 sudo mv /tmp/quickbuntu/usr/local/bin/blitzclean /usr/local/bin/
+sudo mv /tmp/quickbuntu/usr/local/bin/mediasane /usr/local/bin/
 sudo chown +x /usr/local/bin/blitzclean
+sudo chown +x /usr/local/bin/mediasane
 cd $HOME
 ```
 
@@ -277,6 +279,8 @@ cd $HOME
 ## 21. Customize the Terminal (Zsh, Powerlevel10k, and Plugins)
 
 A developer’s terminal is a key productivity tool. This customization replaces the default Bash shell with **Zsh**, adds the **Oh My Zsh** framework, and enhances usability with features like autosuggestions and syntax highlighting. The **Powerlevel10k** theme adds a professional, informative prompt with Git, Python, and system status indicators. Together, these tweaks create a fast, elegant, and feature-rich command-line experience.
+
+**Default User**
 
 ```bash
 mkdir -p ~/.local/share/fonts
@@ -302,21 +306,57 @@ mv ~/.zshrc ~/.zshrc.bak
 cat <<'EOF' > ~/.zshrc
 export ZSH="$HOME/.oh-my-zsh"
 export ZSH_CUSTOM="$ZSH/custom"
-
 ZSH_THEME="powerlevel10k/powerlevel10k"
-
 plugins=(git zsh-syntax-highlighting zsh-autosuggestions)
-
 alias ls='exa --icons'
 alias ll='exa -l --icons'
 alias la='exa -la --icons'
 alias tree='tree -C'
-
 source $ZSH/oh-my-zsh.sh
 EOF
 
 source ~/.zshrc
 cd $HOME
+```
+
+**System User**
+
+```bash
+sudo -s
+mkdir -p /root/.local/share/fonts
+cd /root/.local/share/fonts
+wget https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.zip
+unzip Meslo.zip
+fc-cache -fv
+rm -f Meslo.zip
+
+cd /tmp
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/themes/powerlevel10k
+git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+
+wget https://github.com/ogham/exa/releases/latest/download/exa-linux-x86_64-v0.10.1.zip
+unzip exa-linux-x86_64-v0.10.1.zip
+sudo mv bin/exa /usr/local/bin/exa
+sudo chmod +x /usr/local/bin/exa
+echo -e "\n# Start ZSH\nif [ -t 1 ]; then\n  exec zsh\nfi" >> /root/.bashrc
+mv /root/.zshrc /root/.zshrc.bak
+
+cat <<'EOF' > /root/.zshrc
+export ZSH="/root/.oh-my-zsh"
+export ZSH_CUSTOM="$ZSH/custom"
+ZSH_THEME="powerlevel10k/powerlevel10k"
+plugins=(git zsh-syntax-highlighting zsh-autosuggestions)
+alias ls='exa --icons'
+alias ll='exa -l --icons'
+alias la='exa -la --icons'
+alias tree='tree -C'
+source $ZSH/oh-my-zsh.sh
+EOF
+
+source /root/.zshrc
+cd /root/
 ```
 
 * * *

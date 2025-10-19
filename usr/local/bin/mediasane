@@ -414,11 +414,8 @@ datemeta()
 {
     local f="$1"
     local v=""
-    # [FIX] Use fast and robust flags; guard with timeout
-    # -fast2 : faster metadata read; -q -q : quiet; -m : ignore minor errors
-    # -api LargeFileSupport=1 : handle very large files
-    if v="$(runtimeout "$TIMEOUTMETA" exiftool -s -S -q -q -m -api LargeFileSupport=1 -fast2 -d '%Y%m%d' \
-            -DateTimeOriginal -CreateDate -MediaCreateDate -FileModifyDate -- "$f" 2>/dev/null | head -n1)"; then
+    if v="$(runtimeout "$TIMEOUTMETA" exiftool -s -S -q -q -m -api LargeFileSupport=1 -fast2 -d '%Y%m%d' -DateTimeOriginal -CreateDate -MediaCreateDate -FileModifyDate -- "$f" 2>/dev/null | head -n1)";
+    then
         [[ "$v" =~ ^[0-9]{8}$ ]] && echo "$v" || echo ""
     else
         say "[TIMEOUT] exiftool on \"$f\" — using mtime/fallback"
@@ -494,21 +491,18 @@ initkey()
     fi
 
     local maxseq=0
-    # Scan existing files once; match: PREFIXYYYYMMDD-00000.anyext
-    # We avoid 'ls' parsing issues; use find with -maxdepth 1.
-    while IFS= read -r -d '' f; do
+    while IFS= read -r -d '' f; 
+    do
         local bn="$(basename -- "$f")"
-        # Extract 5-digit sequence between '-' and the next '.'
-        if [[ "$bn" =~ ^${prefix}${segdate}-([0-9]{5})\..+$ ]]; then
+        if [[ "$bn" =~ ^${prefix}${segdate}-([0-9]{5})\..+$ ]]; 
+        then
             local n="${BASH_REMATCH[1]}"
-            # strip leading zeros safely
             n=$((10#$n))
             (( n > maxseq )) && maxseq="$n"
         fi
     done < <(find "$destdir" -maxdepth 1 -type f -name "${prefix}${segdate}-*" -print0 2>/dev/null)
 
     MAXSEQ[$key]="$maxseq"
-    # Initialize COUNTERS at maxseq so nextseq() returns maxseq+1
     COUNTERS[$key]="$maxseq"
 }
 
@@ -556,7 +550,7 @@ checkduplicate()
     local path="$1"
     if [[ $KEEPDUPLICATE -eq 1 ]];
     then
-        local root="${OUTDIR:-$TARGETDIR}"    # [FIX] place .duplicates beside output when using --outdir
+        local root="${OUTDIR:-$TARGETDIR}"
         local d="${root%/}/.duplicates"
         ensuredir "$d"
         local base="$(basename -- "$path")"
@@ -576,7 +570,6 @@ checkduplicate()
 # Function enumfiles()
 # Emit NUL-separated list of candidate files to process
 # Return: <list to stdout>
-# [FIX] snapshot stable, exclude .duplicates
 enumfiles()
 {
     local d="$1"
