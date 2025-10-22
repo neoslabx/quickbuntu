@@ -99,17 +99,17 @@ showusage()
     say "  blitzclean [options]"
     say
     say "Options:"
-    say "  --dry-run                 Preview EXACT files/paths that would be deleted."
-    say "  --all                     Enable all optional features (browsers + old kernels)."
-    say "  --browsers                Clean browser caches (Firefox/Chrome/Chromium/Brave)."
-    say "  --kernels                 Remove old linux-image packages (keeps current kernel)."
-    say "  --vacuum-days N           Journal retention by age (default: 7)."
-    say "  --vacuum-size SIZE        Journal retention by size (default: 100M)."
-    say "  --keep-snaps N            Keep N Snap revisions (default: 2)."
+    say "  --dry-run                 Preview EXACT files/paths that would be deleted"
+    say "  --all                     Enable all optional features (browsers + old kernels)"
+    say "  --browsers                Clean browser caches (Firefox/Chrome/Chromium/Brave)"
+    say "  --kernels                 Remove old linux-image packages (keeps current kernel)"
+    say "  --vacuum-days N           Journal retention by age (default: 7)"
+    say "  --vacuum-size SIZE        Journal retention by size (default: 100M)"
+    say "  --keep-snaps N            Keep N Snap revisions (default: 2)"
     say
     say "Help/Info:"
-    say "  -h, --help, usage         Show this menu and exit."
-    say "  --version                 Print version and exit."
+    say "  -h, --help, usage         Show this menu and exit"
+    say "  --version                 Print version and exit"
     say
     say "Examples:"
     say "  blitzclean --dry-run"
@@ -374,6 +374,16 @@ delpattern()
     fi
 }
 
+# Function shutnow()
+# Restart system within a specific countdown
+# Return: <seconds>
+shutnow() 
+{
+    linebreak
+    for i in {10..1}; do echo -ne "\rSystem shutdown within $i seconds "; sleep 1; done; echo -e "\Shutting done  "
+    sudo shutdown now
+}
+
 # Function cleanuphome()
 # Perform user-level cleanup in $USERHOME
 # Return: void
@@ -573,6 +583,7 @@ main()
     cleanuphome
     cleanupsystem
     showsummary
+    shutnow
 }
 
 # Invoke callback

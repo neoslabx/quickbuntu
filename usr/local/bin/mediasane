@@ -132,8 +132,8 @@ showusage()
     say "  --hash-timeout SEC       Override hash timeout (default: 60)"
     say
     say "Help/Info:"
-    say "  -h, --help, usage        Show this menu and exit."
-    say "  --version                Print version and exit."
+    say "  -h, --help, usage        Show this menu and exit"
+    say "  --version                Print version and exit"
     say
     say "Examples:"
     say "  mediasane --dir /path/to/folder"
