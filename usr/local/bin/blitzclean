@@ -2,7 +2,7 @@
 
 # VERSION - Human-readable script version string.
 # Update this when making user-visible changes.
-VERSION="v3.4"
+VERSION="v3.5"
 
 # DRYRUN - When set to "1", perform a dry run only.
 # Lists what would be deleted without removing anything.
@@ -385,7 +385,7 @@ switchoff()
 {
     linebreak
     for i in {10..1}; do echo -ne "\rSystem shutdown within $i seconds "; sleep 1; done; echo -e "\Shutting done  "
-    #sudo shutdown now
+    sudo shutdown now
 }
 
 # Function cleanuphome()
