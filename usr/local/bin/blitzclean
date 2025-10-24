@@ -49,7 +49,10 @@ BACKHOMESIZE=""
 # Return: <string>
 say() 
 {
-    echo -e "$@"
+    if [ $# -gt 0 ]; 
+    then
+        echo -e "$*"
+    fi
 }
 
 # Function linebreak()
@@ -68,8 +71,7 @@ showbanner()
     clear
     printf '%0.s=' {1..60}; echo
     say "BlitzClean $VERSION - The Ultimate Ubuntu Cleanup Script"
-    printf '%0.s=' {1..60}; echo
-    
+    printf '%0.s=' {1..60}; echo    
     say "[+] Mode $([[ $DRYRUN -eq 1 ]] && echo 'dry-run (listing only)' || echo 'real execution')"
 
     [[ $CLEARBROWSERS -eq 1 ]] && say "[+] Browser cache cleaning enabled"
@@ -283,8 +285,8 @@ userdir()
 previewlist() 
 {
     local d="$1"
-    [[ -d "$d" ]] || return
-    find "$d" -mindepth 1 -maxdepth 1 -print 2>/dev/null
+    [[ -d "$d" ]] || return 0
+    find "$d" -mindepth 1 -maxdepth 1 -print 2>/dev/null | grep -v '^[[:space:]]*$'
 }
 
 # Function delfile()
@@ -295,9 +297,10 @@ delfile()
     local f="$1"
     if [[ $DRYRUN -eq 1 ]]; 
     then
-        echo "$f"
+        say "$f"
         return 0
     else
+        say "$d"
         rm -f "$f"
     fi
 }
@@ -313,6 +316,7 @@ deldir()
         find "$d" -mindepth 1 -print 2>/dev/null
         return 0
     else
+        say "$d"
         rm -rf "$d"
     fi
 }
@@ -333,7 +337,7 @@ delpath()
     then
         if [[ $DRYRUN -eq 1 ]];
         then
-            previewlist "$target"
+            previewlist "$target" | grep -v '^[[:space:]]*$'
         else
             find "$target" -mindepth 1 -maxdepth 1 -print0 2>/dev/null | \
             while IFS= read -r -d '' p;
@@ -368,20 +372,20 @@ delpattern()
 
     if [[ $DRYRUN -eq 1 ]];
     then
-        printf "%s\n" "${files[@]}"
+        say "${files[@]}"
     else
-        printf '%s\0' "${files[@]}" | xargs -0 -r rm -f
+        say "${files[@]}" | xargs -0 -r rm -f
     fi
 }
 
-# Function shutnow()
+# Function switchoff()
 # Restart system within a specific countdown
 # Return: <seconds>
-shutnow() 
+switchoff() 
 {
     linebreak
     for i in {10..1}; do echo -ne "\rSystem shutdown within $i seconds "; sleep 1; done; echo -e "\Shutting done  "
-    sudo shutdown now
+    #sudo shutdown now
 }
 
 # Function cleanuphome()
@@ -429,15 +433,14 @@ cleanuphome()
             delpath "$i"
         fi
     done
-
     trash-empty --all-users -v -f
 
     linebreak
     say "[+] Cleaning recent documents"
     local recentlist=(
-    "$USERHOME/.local/share/recently-used.xbel"
     "$USERHOME/.cache/recently-used.xbel"
     "$USERHOME/.local/share/RecentDocuments"
+    "$USERHOME/.local/share/recently-used.xbel"
     )
 
     for f in "${recentlist[@]}"; 
@@ -586,7 +589,7 @@ main()
     cleanuphome
     cleanupsystem
     showsummary
-    shutnow
+    switchoff
 }
 
 # Invoke callback
