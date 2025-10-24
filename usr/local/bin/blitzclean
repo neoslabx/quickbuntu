@@ -2,7 +2,7 @@
 
 # VERSION - Human-readable script version string.
 # Update this when making user-visible changes.
-VERSION="v3.3"
+VERSION="v3.4"
 
 # DRYRUN - When set to "1", perform a dry run only.
 # Lists what would be deleted without removing anything.
@@ -398,16 +398,20 @@ cleanuphome()
         "$USERHOME/.cache/JetBrains"
         "$USERHOME/.cache/keepassxc"
         "$USERHOME/.cache/Microsoft"
+        "$USERHOME/.cache/obexd"
+        "$USERHOME/.cache/shotwell"
         "$USERHOME/.cache/shutter"
         "$USERHOME/.cache/sublime-text"
         "$USERHOME/.cache/thumbnails"
         "$USERHOME/.cache/totem"
         "$USERHOME/.cache/tracker3"
         "$USERHOME/.cache/ubuntu-report"
+        "$USERHOME/.dotnet"
         "$USERHOME/.profile.bak"
         "$USERHOME/.shell.pre-oh-my-zsh"
         "$USERHOME/.shutter"
         "$USERHOME/.ssh"
+        "$USERHOME/.subversion"
         "$USERHOME/.thumbnails"
         "$USERHOME/.wget-hsts"
         "$USERHOME/.zcompdump"
@@ -578,7 +582,6 @@ main()
     showbanner
 
     FRONTROOTSIZE=$(freebytes "/")
-    FRONTHOMESIZE=$(freebytes "$USERHOME")
 
     cleanuphome
     cleanupsystem
