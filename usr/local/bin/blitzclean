@@ -378,10 +378,10 @@ delpattern()
     fi
 }
 
-# Function switchoff()
+# Function switchdown()
 # Restart system within a specific countdown
 # Return: <seconds>
-switchoff() 
+switchdown() 
 {
     linebreak
     for i in {10..1}; do echo -ne "\rSystem shutdown within $i seconds "; sleep 1; done; echo -e "\Shutting done  "
@@ -589,7 +589,7 @@ main()
     cleanuphome
     cleanupsystem
     showsummary
-    switchoff
+    switchdown
 }
 
 # Invoke callback
