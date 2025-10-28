@@ -18,7 +18,19 @@ cd $HOME
 
 * * *
 
-## 2. Update and Clean the System
+## 2. Disable Apport
+
+First thing to do is check your `/var/crash` directory and see if there are any “crash” files. These are just normal text files and include details about a process. If you have a process crashing regularly, you most likely want to report it, so the vendor can implement a fix.
+
+```bash
+ls -la /var/crash
+sudo rm -f /var/*.crash
+sudo sed -i 's/^enabled=1/enabled=0/' /etc/default/apport
+```
+
+* * *
+
+## 3. Update and Clean the System
 
 A complete system update and cleanup is critical before installing new software. This process ensures you’re working with the latest security patches, kernel improvements, and dependency versions available in Ubuntu’s repositories. By cleaning and removing unused packages, you also free disk space and prevent version conflicts during the installation of future tools.
 
@@ -30,7 +42,7 @@ sudo apt -y clean && sudo apt -y autoclean
 
 * * *
 
-## 3. Remove Unused Default Applications (Thunderbird)
+## 4. Remove Unused Default Applications (Thunderbird)
 
 Many Ubuntu distributions include pre-installed applications that may not be necessary for developers. For example, **Thunderbird** is an email client that occupies space and system resources if unused. Removing such applications helps streamline the environment, reduces update time, and improves startup performance by avoiding unnecessary background services.
 
@@ -41,7 +53,7 @@ sudo snap remove --purge thunderbird
 
 * * *
 
-## 4. Install Essential System Libraries
+## 5. Install Essential System Libraries
 
 These libraries provide the foundational components required to build, compile, and run modern software. Libraries like `libclang-dev`, `libssl-dev`, and `zlib1g-dev` are dependencies for compilers, encryption, and compression operations used in C/C++, Python, and Rust projects. Installing them early avoids compilation errors when setting up more advanced developer tools later.
 
@@ -51,7 +63,7 @@ sudo apt -y install libclang-dev libffi-dev libfuse2 libssl-dev libudev-dev libx
 
 * * *
 
-## 5. Install Developer Fonts
+## 6. Install Developer Fonts
 
 Readable fonts are essential for long coding sessions. Installing **DejaVu** and **Powerline** fonts ensures compatibility with customized terminal prompts, syntax-highlighted themes, and tools like `Oh My Zsh`. They enhance the visual clarity of code, improve readability of symbols, and make special Powerline icons display properly in terminals and IDEs.
 
@@ -61,33 +73,33 @@ sudo apt -y install fonts-dejavu fonts-powerline
 
 * * *
 
-## 6. Install Core Developer Packages
+## 7. Install Core Developer Packages
 
 This step equips your system with a wide range of developer utilities and productivity tools. From compilers (`build-essential`) to network analysis utilities (`nmap`, `wfuzz`, `nikto`), this set ensures your workstation can handle web development, cybersecurity tasks, and general system maintenance. Having them pre-installed means less downtime when switching between project types or debugging different environments.
 
 ```bash
 sudo apt -y install apt-transport-https build-essential ca-certificates curl dirb dnsenum easytag evolution evolution-ews exiftool filezilla \
-flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap pkg-config protobuf-compiler secure-delete \
+flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap policykit-1 pkg-config protobuf-compiler secure-delete \
 shutter software-properties-common sqlitebrowser sqlmap subversion testssl.sh trash-cli wapiti wfuzz wget whatweb whois zsh
 ```
 
 * * *
 
-## 7. Install Python and Related Packages
+## 8. Install Python and Related Packages
 
 Python is essential for automation, data analysis, scripting, and backend web development. This step installs Python 3 along with scientific and web development libraries such as **NumPy**, **Flask**, **Pandas**, and **Matplotlib**. Symbolic links for `python` and `pip` are also added for command-line convenience, ensuring compatibility with older scripts expecting the `python` binary name.
 
 ```bash
 sudo apt -y install python3 python3-bs4 python3-cryptography python3-dateutil python3-dev python3-django python3-flask python3-ipython \
-python3-jinja2 python3-lxml python3-matplotlib python3-numpy python3-pandas python3-pip python3-pyqt5 python3-requests python3-scipy \
-python3-setuptools python3-sklearn python3-venv
+python3-jinja2 python3-lxml python3-matplotlib python3-numpy python3-pandas python3-pip python3-pyqt5 python3-pyqt6 python3-requests \
+python3-scipy python3-setuptools python3-sklearn python3-venv
 sudo ln -s /usr/bin/python3 /usr/local/bin/python
 sudo ln -s /usr/bin/pip3 /usr/local/bin/pip
 ```
 
 * * *
 
-## 8. Install Java Runtime and Development Kit
+## 9. Install Java Runtime and Development Kit
 
 Java remains a foundational technology for enterprise, Android, and cross-platform applications. Installing both **JRE (Java Runtime Environment)** and **JDK (Java Development Kit)** provides the ability to compile and run Java programs. Many IDEs, including JetBrains products, rely on these components to function properly.
 
@@ -97,7 +109,7 @@ sudo apt -y install default-jdk default-jre
 
 * * *
 
-## 9. Install Docker and Docker Compose
+## 10. Install Docker and Docker Compose
 
 Docker allows developers to create reproducible and isolated environments for applications. This installation enables containerized development, ensuring your code runs consistently across different systems. The included Docker Compose plugin simplifies orchestrating multi-container applications such as microservices or CI pipelines.
 
@@ -113,7 +125,7 @@ cd $HOME
 
 * * *
 
-## 10. Install Sublime Text
+## 11. Install Sublime Text
 
 **Sublime Text** is a lightweight yet powerful text editor favored for its speed and simplicity. It’s ideal for editing configuration files, scripts, or quick code snippets without the overhead of a full IDE. The repository method ensures automatic updates and integration with your system’s package manager.
 
@@ -127,7 +139,7 @@ cd $HOME
 
 * * *
 
-## 11. Install Google Chrome
+## 12. Install Google Chrome
 
 Installing Google Chrome gives you a reliable browser for web development and debugging. It supports modern web standards, developer tools, and extensions that simplify testing and profiling of websites or web applications. Having Chrome also ensures consistent behavior when testing projects destined for Chrome-based environments.
 
@@ -140,7 +152,7 @@ cd $HOME
 
 * * *
 
-## 12. Install Telegram Desktop
+## 13. Install Telegram Desktop
 
 **Telegram Desktop** is useful for communication, file sharing, and automation via bots. For developers, it provides an efficient channel for collaborating on projects or receiving real-time notifications from CI/CD pipelines or monitoring bots. Installing it manually ensures you always get the latest official release without waiting for repository updates.
 
@@ -155,7 +167,7 @@ cd $HOME
 
 * * *
 
-## 13. Install Tor Browser
+## 14. Install Tor Browser
 
 **Tor Browser** enhances your online privacy by routing traffic through a secure, distributed network. It’s particularly useful for security researchers, ethical hackers, and developers who need to test websites under different anonymity conditions. This step installs the official Tor release and adds it as a desktop application for convenient launching.
 
@@ -173,7 +185,7 @@ cd $HOME
 
 * * *
 
-## 14. Install Visual Studio Code
+## 15. Install Visual Studio Code
 
 **VS Code** is a powerful, extensible IDE suitable for virtually any programming language. Its integrated Git support, extensions marketplace, and debugging capabilities make it a must-have for developers. Installing it directly from Microsoft’s servers guarantees compatibility with new features and faster updates than Ubuntu’s default repositories.
 
@@ -186,7 +198,7 @@ cd $HOME
 
 * * *
 
-## 15. Install KeePassXC
+## 16. Install KeePassXC
 
 **KeePassXC** is an open-source password manager that securely stores credentials in encrypted databases. For developers managing multiple environments, servers, and API keys, it offers an offline alternative to cloud-based password tools. Its cross-platform compatibility and browser integration make it a reliable daily security companion.
 
@@ -199,7 +211,7 @@ cd $HOME
 
 * * *
 
-## 16. Install ProtonVPN
+## 17. Install ProtonVPN
 
 ProtonVPN encrypts your internet connection, hides your IP address, and protects sensitive development traffic. It’s especially useful when accessing public Wi-Fi, working remotely, or connecting to staging servers over insecure networks. This setup installs the official ProtonVPN client and verifies package integrity using SHA-256 checks.
 
@@ -214,7 +226,7 @@ cd $HOME
 
 * * *
 
-## 17. Install ProtonMail Bridge
+## 18. Install ProtonMail Bridge
 
 **ProtonMail Bridge** allows you to integrate ProtonMail with desktop clients like Thunderbird or Evolution. It creates a secure local encryption layer so your emails remain private while still accessible via standard IMAP/SMTP clients. This setup ensures encrypted email handling for developers working in privacy-sensitive environments.
 
@@ -227,7 +239,7 @@ cd $HOME
 
 * * *
 
-## 18. Install JetBrains Toolbox
+## 19. Install JetBrains Toolbox
 
 JetBrains Toolbox simplifies managing IDEs like IntelliJ IDEA, PyCharm, WebStorm, and CLion. Instead of downloading each IDE separately, the Toolbox provides one interface to install, update, and configure all JetBrains products. This step requires manual download but significantly improves long-term maintainability for multi-language development workflows.
 
@@ -246,7 +258,7 @@ cd $HOME
 
 * * *
 
-## 19. Install Rclone and Rclone Browser
+## 20. Install Rclone and Rclone Browser
 
 **Rclone** is a command-line program that synchronizes files with over 40 cloud services, including Google Drive, Dropbox, and OneDrive. The **Rclone Browser** adds a graphical interface to simplify transfers and synchronization. Together, they offer developers an efficient way to back up code, synchronize configurations, or manage project data securely across devices.
 
@@ -260,23 +272,25 @@ cd $HOME
 
 * * *
 
-## 20. Clone Github Repository
+## 21. Clone Github Repository
 
 This step retrieves the Quickbuntu repository from GitHub, which contains essential tools and scripts developed by NeosLab to automate and optimize Ubuntu setups. The repository includes BlitzClean, a maintenance utility that helps clean, update, and optimize system performance with a single command.
 
 ```bash
 cd /tmp/
 git clone https://github.com/neoslabx/quickbuntu
-sudo mv /tmp/quickbuntu/usr/local/bin/blitzclean /usr/local/bin/
+sudo install -m 0755 /tmp/quickbuntu/usr/local/bin/blitzclean /usr/local/bin/blitzclean
+sudo install -D -m 0644 /tmp/quickbuntu/usr/share/pixmaps/blitzclean.png /usr/share/pixmaps/blitzclean.png
+sudo install -m 0644 /tmp/quickbuntu/usr/share/applications/blitzclean.desktop /usr/share/applications/blitzclean.desktop
 sudo mv /tmp/quickbuntu/usr/local/bin/mediasane /usr/local/bin/
-sudo chown +x /usr/local/bin/blitzclean
 sudo chown +x /usr/local/bin/mediasane
+sudo update-desktop-database || true
 cd $HOME
 ```
 
 * * *
 
-## 21. Customize the Terminal (Zsh, Powerlevel10k, and Plugins)
+## 22. Customize the Terminal (Zsh, Powerlevel10k, and Plugins)
 
 A developer’s terminal is a key productivity tool. This customization replaces the default Bash shell with **Zsh**, adds the **Oh My Zsh** framework, and enhances usability with features like autosuggestions and syntax highlighting. The **Powerlevel10k** theme adds a professional, informative prompt with Git, Python, and system status indicators. Together, these tweaks create a fast, elegant, and feature-rich command-line experience.
 
@@ -361,7 +375,7 @@ cd /root/
 
 * * *
 
-## 22. Configure Powerlevel10k
+## 23. Configure Powerlevel10k
 
 After installation, configure the **Powerlevel10k** theme to match your preferences. The configuration wizard lets you adjust icons, color schemes, segment styles, and prompt behavior. Taking the time to fine-tune this step enhances readability and helps organize command-line information efficiently.
 
@@ -371,7 +385,7 @@ p10k configure
 
 * * *
 
-## 23. Final System Update and Cleanup
+## 24. Final System Update and Cleanup
 
 To conclude, perform another full system update and cleanup. This ensures that all installed packages are up to date, redundant files are removed, and the system is left in a stable and optimized state. Running this command post-setup keeps the environment lean, secure, and ready for immediate use.
 
@@ -383,7 +397,7 @@ sudo apt -y clean && sudo apt -y autoclean
 
 * * *
 
-## 24. Change SSH Port
+## 25. Change SSH Port
 
 Another thing that can be done on your machine is configuring the SSH service's listening port. It is set to port 22 by default, therefore if you are running a server, some hacking robots will target this port. Modifying this setting by using a different port is a simple measure to harden your server against automated attacks.
 
