@@ -78,7 +78,7 @@ sudo apt -y install fonts-dejavu fonts-powerline
 This step equips your system with a wide range of developer utilities and productivity tools. From compilers (`build-essential`) to network analysis utilities (`nmap`, `wfuzz`, `nikto`), this set ensures your workstation can handle web development, cybersecurity tasks, and general system maintenance. Having them pre-installed means less downtime when switching between project types or debugging different environments.
 
 ```bash
-sudo apt -y install apt-transport-https build-essential ca-certificates curl dirb dnsenum easytag evolution evolution-ews exiftool filezilla \
+sudo apt -y install apt-transport-https build-essential ca-certificates curl deborphan dirb dnsenum easytag evolution evolution-ews exiftool filezilla \
 flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap policykit-1 pkg-config protobuf-compiler secure-delete \
 shutter software-properties-common sqlitebrowser sqlmap subversion testssl.sh trash-cli wapiti wfuzz wget whatweb whois zsh
 ```

@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 
 # Import packages
+import json
 import os
 import queue
 import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 
 # Import libraries
@@ -43,6 +45,7 @@ CONFIG_PATH = Path.home() / ".config" / "blitzclean"
 
 # Define 'CONFIG_FILE'
 CONFIG_FILE = CONFIG_PATH / "config"
+
 
 # Class 'SysUtils'
 class SysUtils:
@@ -124,7 +127,7 @@ class ShellExec:
         Returns the subprocess return code (0 on success).
         """
         if dryrun:
-            logshow(f"[DRY-RUN] {cmd}")
+            logshow(f"[Dry-Run] {cmd}")
             return 0
         logshow(f"$ {cmd}")
         try:
@@ -371,6 +374,45 @@ class ExecOpts:
     username: str = ""
     userhome: str = ""
 
+    # Function 'todict'
+    def todict(self) -> dict:
+        """
+        Serialize the current execution options to a plain dictionary.
+        Keeps only JSON-safe primitives for safe transport across processes.
+        Used by the privileged worker mode invoked through 'pkexec'.
+        """
+        return {
+            "dryrun": self.dryrun,
+            "clearbrowsers": self.clearbrowsers,
+            "clearkernels": self.clearkernels,
+            "vacuumdays": self.vacuumdays,
+            "vacuumsize": self.vacuumsize,
+            "keepsnaps": self.keepsnaps,
+            "shutafter": self.shutafter,
+            "username": self.username,
+            "userhome": self.userhome,
+        }
+
+    # Function 'fromdict'
+    @staticmethod
+    def fromdict(d: dict) -> "ExecOpts":
+        """
+        Build an ExecOpts instance from a dictionary of values.
+        Applies defensive casting and reasonable defaults to each field.
+        Used by the headless worker to reconstruct options from JSON.
+        """
+        return ExecOpts(
+            dryrun=bool(d.get("dryrun", False)),
+            clearbrowsers=bool(d.get("clearbrowsers", False)),
+            clearkernels=bool(d.get("clearkernels", False)),
+            vacuumdays=int(d.get("vacuumdays", 7)),
+            vacuumsize=str(d.get("vacuumsize", "100M")),
+            keepsnaps=int(d.get("keepsnaps", 2)),
+            shutafter=bool(d.get("shutafter", False)),
+            username=str(d.get("username", "")),
+            userhome=str(d.get("userhome", "")),
+        )
+
 
 # Class 'SysCleaner'
 class SysCleaner:
@@ -424,21 +466,20 @@ class SysCleaner:
         Helps the user understand what will be executed.
         Logged at the start of each cleanup run.
         """
-        self.log("=" * 60)
+        self.log("=" * 80)
         self.log(f"BlitzClean {VERSION} - Ubuntu Cleanup GUI")
-        self.log("=" * 60)
+        self.log("=" * 80)
         mode = "dry-run (listing only)" if self.opts.dryrun else "real execution"
         self.log(f"[+] Mode {mode}")
-        
+
         if self.opts.clearbrowsers:
             self.log("[+] Browser cache cleaning enabled")
-            
+
         if self.opts.clearkernels:
             self.log("[+] Kernel removal enabled")
-            
+
         self.log(f"[+] Journal retention {self.opts.vacuumdays} days / {self.opts.vacuumsize} max size")
-        self.log("[+] Privileges root (full cleanup)" if SysUtils.rootcheck() else "[+] Privileges user-only cleanup")
-        self.log("")
+        self.log("[+] Privileges root" if SysUtils.rootcheck() else "[+] Privileges user-only")
 
     # Function 'checkstop'
     def checkstop(self):
@@ -450,15 +491,14 @@ class SysCleaner:
         if self.stopflag:
             raise RuntimeError("Operation cancelled by user.")
 
-    # Function 'cleanuphome'
-    def cleanuphome(self):
+    # Function 'cleanupuser'
+    def cleanupuser(self, uh: Path):
         """
-        Clean user-level caches, histories, and recent documents.
-        Optionally clears browser caches when enabled.
-        Updates estimated bytes freed for summary reporting.
+        Clean a specific user's home directory tree.
+        Wipes caches, histories, recents, and browser artifacts.
+        Honors dry-run mode and accounts for estimated freed bytes.
         """
-        uh = Path(self.opts.userhome)
-        self.log("-" * 60)
+        self.log("-" * 80)
         self.log(f"[+] Cleaning {uh} user data")
 
         targets = [
@@ -500,14 +540,22 @@ class SysCleaner:
             self.checkstop()
             self.addbytes(FileOps.removefile(p, self.opts.dryrun, self.log))
 
-        self.log("-" * 60)
+        # NEW: fully remove ~/snap directory
+        self.checkstop()
+        snap_dir = uh / "snap"
+        if snap_dir.exists():
+            self.log("-" * 80)
+            self.log(f"[+] Removing {snap_dir}")
+            self.addbytes(FileOps.removetree(snap_dir, self.opts.dryrun, self.log))
+
+        self.log("-" * 80)
         self.log("[+] Emptying trash")
         if shutil.which("trash-empty"):
             ShellExec.run("trash-empty --all-users -v -f", self.opts.dryrun, self.log)
         else:
             self.log("trash-empty not found")
 
-        self.log("-" * 60)
+        self.log("-" * 80)
         self.log("[+] Cleaning recent documents")
         recent = [
             ".cache/recently-used.xbel",
@@ -524,7 +572,7 @@ class SysCleaner:
                 self.addbytes(FileOps.globdel(p, "*.desktop", self.opts.dryrun, self.log))
 
         if self.opts.clearbrowsers:
-            self.log("-" * 60)
+            self.log("-" * 80)
             self.log("[+] Cleaning browser caches")
             ffroot = uh / ".mozilla" / "firefox"
 
@@ -545,7 +593,7 @@ class SysCleaner:
                 if p.is_dir():
                     self.addbytes(FileOps.wipedir(p, self.opts.dryrun, self.log))
 
-        self.log("-" * 60)
+        self.log("-" * 80)
         self.log(f"[+] Cleaning {uh} shell history")
         for rel in [".bash_history", ".zsh_history"]:
             self.checkstop()
@@ -563,6 +611,16 @@ class SysCleaner:
                 except OSError as e:
                     self.log(f"[!] history wipe failed: {p} -> {e}")
 
+    # Function 'cleanuphome'
+    def cleanuphome(self):
+        """
+        Clean user-level caches, histories, and recent documents.
+        Optionally clears browser caches when enabled.
+        Updates estimated bytes freed for summary reporting.
+        """
+        # Keep compatibility: clean the selected userhome
+        self.cleanupuser(Path(self.opts.userhome))
+
     # Function 'cleanupsystem'
     def cleanupsystem(self):
         """
@@ -573,7 +631,7 @@ class SysCleaner:
         if not SysUtils.rootcheck():
             return
 
-        self.log("-" * 60)
+        self.log("-" * 80)
         self.log("[+] Cleaning system directories")
         self.addbytes(FileOps.wipedir(Path("/tmp"), self.opts.dryrun, self.log))
         self.addbytes(FileOps.wipedir(Path("/var/tmp"), self.opts.dryrun, self.log))
@@ -588,7 +646,7 @@ class SysCleaner:
         ShellExec.run(f"snap set system refresh.retain={self.opts.keepsnaps}", self.opts.dryrun, self.log)
 
         if self.opts.dryrun:
-            self.log("[DRY-RUN] remove disabled snap revisions")
+            self.log("[Dry-Run] remove disabled snap revisions")
         else:
             cmd = r"snap list --all 2>/dev/null | awk '/disabled/ {print $1, $2}'"
             ec, out = ShellExec.capture(cmd)
@@ -598,23 +656,24 @@ class SysCleaner:
                     if len(parts) != 2:
                         continue
                     name, rev = parts
-                    ShellExec.run(f"snap remove --revision={shlex.quote(rev)} {shlex.quote(name)} --purge", False, self.log)
+                    ShellExec.run(f"snap remove --revision={shlex.quote(rev)} {shlex.quote(name)} --purge", False,
+                                  self.log)
 
         self.addbytes(FileOps.globdel(Path("/var/lib/snapd/snaps"), "*.old", self.opts.dryrun, self.log))
         ShellExec.run("flatpak uninstall --unused -y", self.opts.dryrun, self.log)
 
         if self.opts.dryrun:
-            self.log("[DRY-RUN] deborphan | xargs apt-get remove --purge -y")
+            self.log("[Dry-Run] deborphan | xargs apt-get remove --purge -y")
         else:
             cmd = "deborphan 2>/dev/null"
             ec, out = ShellExec.capture(cmd)
             if ec == 0 and out.strip():
                 pkgs = " ".join(shlex.quote(x) for x in out.strip().splitlines())
                 ShellExec.run(f"xargs --no-run-if-empty -a <(echo '{pkgs}') apt-get remove --purge -y",
-                          False, self.log)
+                              False, self.log)
 
         if self.opts.clearkernels:
-            self.log("-" * 60)
+            self.log("-" * 80)
             cur_kernel = self.kernelnow()
             self.log(f"[+] Removing old kernels (current: {cur_kernel})")
             pkgs = self.kernelold(cur_kernel)
@@ -622,7 +681,7 @@ class SysCleaner:
                 ShellExec.run(f"apt-get remove --purge -y {shlex.quote(pkg)}", self.opts.dryrun, self.log)
             ShellExec.run("update-grub", self.opts.dryrun, self.log)
 
-        self.log("-" * 60)
+        self.log("-" * 80)
         self.log("[+] Cleaning root data")
         for p in ["/root/.cache", "/root/.config", "/root/.launchpadlib", "/root/.ssh", "/root/.wget-hsts"]:
             self.log(p)
@@ -632,7 +691,7 @@ class SysCleaner:
             else:
                 self.addbytes(FileOps.removefile(path, self.opts.dryrun, self.log))
 
-        self.log("-" * 60)
+        self.log("-" * 80)
         self.log("[+] Cleaning root shell history")
         if self.opts.dryrun:
             self.log("/root/.history")
@@ -685,9 +744,26 @@ class SysCleaner:
         self.fronthome = SysUtils.freebytes(self.opts.userhome)
 
         try:
-            self.cleanuphome()
-            self.checkstop()
-            self.cleanupsystem()
+            # NEW: If running as root, clean /root and all users.
+            if SysUtils.rootcheck():
+                self.log("-" * 80)
+                self.log("[+] Running as root: cleaning all users")
+                homes = [("root", "/root")]
+                homes.extend(UserDiscovery.listusers())
+                seen = set()
+                for _, home in homes:
+                    if home in seen:
+                        continue
+                    seen.add(home)
+                    self.checkstop()
+                    self.cleanupuser(Path(home))
+                self.checkstop()
+                self.cleanupsystem()
+            else:
+                # Not root: clean selected home; system cleanup will no-op if not root
+                self.cleanuphome()
+                self.checkstop()
+                self.cleanupsystem()
         except RuntimeError as e:
             self.log(f"[!] {e}")
         except (OSError, PermissionError, subprocess.SubprocessError, ValueError) as e:
@@ -706,10 +782,9 @@ class SysCleaner:
         Shows estimates in dry-run and actual deltas otherwise.
         Separates results for root partition and home path.
         """
-        self.log("")
-        self.log("=" * 60)
+        self.log("=" * 80)
         self.log("Cleanup Summary")
-        self.log("=" * 60)
+        self.log("=" * 80)
         if self.opts.dryrun:
             self.log(f"[+] Estimated freed: {SysUtils.unitsize(self.totalbytes)}")
             self.log("[+] Dry-run mode")
@@ -957,28 +1032,49 @@ class BlitzClean(QWidget):
         if self.worker_thread and self.worker_thread.is_alive():
             QMessageBox.warning(self, "Busy", "A cleanup task is already running.")
             return
-        self.cleaner = SysCleaner(opts, self.logshow)
+
         self.progress.setVisible(True)
         self.btn_stop.setEnabled(True)
         self.btn_run.setEnabled(False)
         self.confpersist(opts)
+        rootneed = (opts.username == "root") and not SysUtils.rootcheck()
 
-        # Function 'work'
-        def work():
+        # Function 'workload'
+        def workload():
             """
             Worker thread target calling the cleaner pipeline.
             Guarantees UI toggles are reset even on exceptions.
             Posts a terminal marker to the log queue when finished.
             """
             try:
-                self.cleaner.run()
+                if rootneed:
+                    with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as tf:
+                        tf.write(json.dumps(opts.todict()))
+                        tf.flush()
+                        optsfile = tf.name
+                    try:
+                        cmd = ["pkexec", sys.executable, sys.argv[0], "--worker", optsfile]
+                        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                        for line in iter(proc.stdout.readline, ""):
+                            if not line:
+                                break
+                            self.logshow(line.rstrip())
+                        proc.wait()
+                    finally:
+                        try:
+                            os.unlink(optsfile)
+                        except OSError:
+                            pass
+                else:
+                    self.cleaner = SysCleaner(opts, self.logshow)
+                    self.cleaner.run()
             finally:
                 self.log_queue.put("--- Done ---")
                 self.progress.setVisible(False)
                 self.btn_stop.setEnabled(False)
                 self.btn_run.setEnabled(True)
 
-        self.worker_thread = threading.Thread(target=work, daemon=True)
+        self.worker_thread = threading.Thread(target=workload, daemon=True)
         self.worker_thread.start()
 
     # Function 'onrun'
@@ -988,7 +1084,6 @@ class BlitzClean(QWidget):
         Clears any previous output and pending log messages first.
         Offers elevation if the selected target user is root.
         """
-        # --- Clear previous output and any pending log lines ---
         self.log.clear()
         try:
             while True:
@@ -997,20 +1092,6 @@ class BlitzClean(QWidget):
             pass
 
         opts = self.gatheropts()
-
-        if opts.username == "root" and not SysUtils.rootcheck():
-            ret = QMessageBox.question(
-                self,
-                "Run as root?",
-                "You selected Root. The app needs administrator privileges.\n\n"
-                "Do you want to relaunch with a graphical password prompt?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            if ret == QMessageBox.StandardButton.Yes:
-                self.rootlauncher()
-            return
-
-        self.logappend("=== CLEANUP START ===")
         self.startworker(opts)
 
     # Function 'onstop'
@@ -1042,6 +1123,18 @@ class App:
         Exits with the Qt application return code.
         Provides a single entry point for CLI execution.
         """
+        if len(sys.argv) == 3 and sys.argv[1] == "--worker":
+            opts_path = Path(sys.argv[2])
+            data = json.loads(opts_path.read_text(encoding="utf-8"))
+            opts = ExecOpts.fromdict(data)
+
+            def logshow(line: str):
+                print(line, flush=True)
+
+            cleaner = SysCleaner(opts, logshow)
+            cleaner.run()
+            return 0
+
         app = QApplication(sys.argv)
         win = BlitzClean()
         win.show()
