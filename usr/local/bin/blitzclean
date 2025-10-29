@@ -38,7 +38,7 @@ from PyQt6.QtWidgets import QVBoxLayout
 from PyQt6.QtWidgets import QWidget
 
 # Define 'VERSION'
-VERSION = "v4.2-GUI"
+VERSION = "v4.3-GUI"
 
 # Define 'CONFIG_PATH'
 CONFIG_PATH = Path.home() / ".config" / "blitzclean"
@@ -179,8 +179,9 @@ class FileOps:
             if not path.exists():
                 return 0
             size = path.stat().st_size if path.is_file() else 0
+            logshow(str(path))
+
             if dryrun:
-                logshow(str(path))
                 return size
             try:
                 path.unlink(missing_ok=True)
@@ -212,10 +213,12 @@ class FileOps:
                         total += p.stat().st_size
                 except (OSError, PermissionError, FileNotFoundError):
                     pass
+
+            logshow(str(path))
+            for p in path.rglob("*"):
+                logshow(str(p))
+
             if dryrun:
-                logshow(str(path))
-                for p in path.rglob("*"):
-                    logshow(str(p))
                 return total
             shutil.rmtree(path, ignore_errors=True)
             return total
@@ -247,24 +250,24 @@ class FileOps:
 
     # Function 'globdel'
     @staticmethod
-    def globdel(dir_path: Path, pattern: str, dryrun: bool, logshow) -> int:
+    def globdel(dirpath: Path, pattern: str, dryrun: bool, logshow) -> int:
         """
-        Delete files under dir_path matching a recursive glob pattern.
+        Delete files under dirpath matching a recursive glob pattern.
         Returns the sum of bytes accounted for removed files.
         Logs directories in dry-run to preview scope.
         """
-        if not dir_path.exists() or not dir_path.is_dir():
+        if not dirpath.exists() or not dirpath.is_dir():
             return 0
         total = 0
         try:
-            for p in dir_path.rglob(pattern):
+            for p in dirpath.rglob(pattern):
                 if p.is_file():
                     total += FileOps.removefile(p, dryrun, logshow)
                 elif dryrun and p.is_dir():
                     logshow(str(p))
             return total
         except OSError as e:
-            logshow(f"[!] glob delete failed: {dir_path} {pattern} -> {e}")
+            logshow(f"[!] glob delete failed: {dirpath} {pattern} -> {e}")
             return 0
 
 
@@ -287,9 +290,9 @@ class UserDiscovery:
         users: List[Tuple[str, str]] = []
         if os.path.isdir("/root"):
             users.append(("root", "/root"))
-        home_dir = Path("/home")
-        if home_dir.is_dir():
-            for child in sorted(home_dir.iterdir()):
+        homedir = Path("/home")
+        if homedir.is_dir():
+            for child in sorted(homedir.iterdir()):
                 if child.is_dir():
                     users.append((child.name, str(child)))
         current = os.environ.get("SUDO_USER") or os.environ.get("USER") or ""
@@ -348,6 +351,7 @@ class ConfigManager:
                 f"userhome={opts.userhome}",
                 f"bootrun={'1' if bootrun else '0'}",
                 f"shutrun={'1' if shutrun else '0'}",
+                f"aggressive={'1' if opts.aggressive else '0'}",
             ]
 
             CONFIG_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -373,6 +377,7 @@ class ExecOpts:
     shutafter: bool = False
     username: str = ""
     userhome: str = ""
+    aggressive: bool = False
 
     # Function 'todict'
     def todict(self) -> dict:
@@ -391,6 +396,7 @@ class ExecOpts:
             "shutafter": self.shutafter,
             "username": self.username,
             "userhome": self.userhome,
+            "aggressive": self.aggressive,
         }
 
     # Function 'fromdict'
@@ -411,6 +417,7 @@ class ExecOpts:
             shutafter=bool(d.get("shutafter", False)),
             username=str(d.get("username", "")),
             userhome=str(d.get("userhome", "")),
+            aggressive=bool(d.get("aggressive", False)),
         )
 
 
@@ -478,6 +485,9 @@ class SysCleaner:
         if self.opts.clearkernels:
             self.log("[+] Kernel removal enabled")
 
+        if self.opts.aggressive:
+            self.log("[+] Aggressive app data cleanup ENABLED (risky)")
+
         self.log(f"[+] Journal retention {self.opts.vacuumdays} days / {self.opts.vacuumsize} max size")
         self.log("[+] Privileges root" if SysUtils.rootcheck() else "[+] Privileges user-only")
 
@@ -500,7 +510,6 @@ class SysCleaner:
         """
         self.log("-" * 80)
         self.log(f"[+] Cleaning {uh} user data")
-
         targets = [
             ".cache/babl",
             ".cache/easytag",
@@ -516,16 +525,27 @@ class SysCleaner:
             ".cache/totem",
             ".cache/tracker3",
             ".cache/ubuntu-report",
-            ".dotnet",
+            ".cache/fontconfig",
+            ".cache/mesa_shader_cache",
+            ".cache/pip",
+            ".cache/npm",
+            ".cache/yarn",
+            ".cache/pnpm",
+            ".cache/thunderbird",
+            ".cache/vscode",
+            ".config/Code/Cache",
+            ".config/Code/CachedData",
+            ".config/Code/logs",
+            ".cache/discord",
+            ".config/discord/Cache",
+            ".config/discord/Code Cache",
             ".profile.bak",
             ".shell.pre-oh-my-zsh",
             ".shutter",
-            ".ssh",
-            ".subversion",
             ".thumbnails",
             ".wget-hsts",
             ".zcompdump",
-            ".zshrc.bak"
+            ".zshrc.bak",
         ]
 
         for rel in targets:
@@ -540,13 +560,16 @@ class SysCleaner:
             self.checkstop()
             self.addbytes(FileOps.removefile(p, self.opts.dryrun, self.log))
 
-        # NEW: fully remove ~/snap directory
-        self.checkstop()
-        snap_dir = uh / "snap"
-        if snap_dir.exists():
+        flatpakroot = uh / ".var" / "app"
+        if flatpakroot.is_dir():
             self.log("-" * 80)
-            self.log(f"[+] Removing {snap_dir}")
-            self.addbytes(FileOps.removetree(snap_dir, self.opts.dryrun, self.log))
+            self.log("[+] Cleaning Flatpak user caches (~/.var/app/*/cache)")
+            for appdir in flatpakroot.iterdir():
+                if not appdir.is_dir():
+                    continue
+                cache_dir = appdir / "cache"
+                if cache_dir.exists():
+                    self.addbytes(FileOps.wipedir(cache_dir, self.opts.dryrun, self.log))
 
         self.log("-" * 80)
         self.log("[+] Emptying trash")
@@ -586,7 +609,10 @@ class SysCleaner:
                 ".cache/google-chrome",
                 ".cache/chromium",
                 ".config/google-chrome",
-                ".config/BraveSoftware/Brave-Browser/Default/Cache"
+                ".config/BraveSoftware/Brave-Browser/Default/Cache",
+                ".config/BraveSoftware/Brave-Browser/Default/Code Cache",
+                ".config/chromium/Default/Cache",
+                ".config/chromium/Default/Code Cache",
             ]:
                 self.checkstop()
                 p = uh / rel
@@ -611,6 +637,18 @@ class SysCleaner:
                 except OSError as e:
                     self.log(f"[!] history wipe failed: {p} -> {e}")
 
+        if self.opts.aggressive:
+            self.log("-" * 80)
+            self.log("[!] Aggressive: removing user app data (may affect apps)")
+            snapdir = uh / "snap"
+            if snapdir.exists():
+                self.log(f"[+] Removing {snapdir}")
+                self.addbytes(FileOps.removetree(snapdir, self.opts.dryrun, self.log))
+            sshdir = uh / ".ssh"
+            if sshdir.exists():
+                self.log(f"[+] Removing {sshdir}")
+                self.addbytes(FileOps.removetree(sshdir, self.opts.dryrun, self.log))
+
     # Function 'cleanuphome'
     def cleanuphome(self):
         """
@@ -618,7 +656,6 @@ class SysCleaner:
         Optionally clears browser caches when enabled.
         Updates estimated bytes freed for summary reporting.
         """
-        # Keep compatibility: clean the selected userhome
         self.cleanupuser(Path(self.opts.userhome))
 
     # Function 'cleanupsystem'
@@ -648,7 +685,7 @@ class SysCleaner:
         if self.opts.dryrun:
             self.log("[Dry-Run] remove disabled snap revisions")
         else:
-            cmd = r"snap list --all 2>/dev/null | awk '/disabled/ {print $1, $2}'"
+            cmd = r"snap list --all 2>/dev/null | awk '/disabled/ {print $1, $3}'"
             ec, out = ShellExec.capture(cmd)
             if ec == 0 and out.strip():
                 for line in out.strip().splitlines():
@@ -656,21 +693,22 @@ class SysCleaner:
                     if len(parts) != 2:
                         continue
                     name, rev = parts
-                    ShellExec.run(f"snap remove --revision={shlex.quote(rev)} {shlex.quote(name)} --purge", False,
-                                  self.log)
+                    ShellExec.run(f"snap remove --revision={shlex.quote(rev)} {shlex.quote(name)} --purge", False, self.log)
 
-        self.addbytes(FileOps.globdel(Path("/var/lib/snapd/snaps"), "*.old", self.opts.dryrun, self.log))
+        self.addbytes(FileOps.wipedir(Path("/var/cache/fontconfig"), self.opts.dryrun, self.log))
+        self.addbytes(FileOps.wipedir(Path("/var/cache/man"), self.opts.dryrun, self.log))
+        self.addbytes(FileOps.wipedir(Path("/var/lib/systemd/coredump"), self.opts.dryrun, self.log))
+        self.addbytes(FileOps.wipedir(Path("/var/lib/snapd/cache"), self.opts.dryrun, self.log))
         ShellExec.run("flatpak uninstall --unused -y", self.opts.dryrun, self.log)
 
         if self.opts.dryrun:
-            self.log("[Dry-Run] deborphan | xargs apt-get remove --purge -y")
+            self.log("[Dry-Run] deborphan | apt-get remove --purge -y")
         else:
             cmd = "deborphan 2>/dev/null"
             ec, out = ShellExec.capture(cmd)
             if ec == 0 and out.strip():
                 pkgs = " ".join(shlex.quote(x) for x in out.strip().splitlines())
-                ShellExec.run(f"xargs --no-run-if-empty -a <(echo '{pkgs}') apt-get remove --purge -y",
-                              False, self.log)
+                ShellExec.run(f"apt-get remove --purge -y {pkgs}", False, self.log)
 
         if self.opts.clearkernels:
             self.log("-" * 80)
@@ -683,7 +721,7 @@ class SysCleaner:
 
         self.log("-" * 80)
         self.log("[+] Cleaning root data")
-        for p in ["/root/.cache", "/root/.config", "/root/.launchpadlib", "/root/.ssh", "/root/.wget-hsts"]:
+        for p in ["/root/.cache", "/root/.config", "/root/.launchpadlib", "/root/.wget-hsts"]:
             self.log(p)
             path = Path(p)
             if path.is_dir():
@@ -744,7 +782,6 @@ class SysCleaner:
         self.fronthome = SysUtils.freebytes(self.opts.userhome)
 
         try:
-            # NEW: If running as root, clean /root and all users.
             if SysUtils.rootcheck():
                 self.log("-" * 80)
                 self.log("[+] Running as root: cleaning all users")
@@ -760,7 +797,6 @@ class SysCleaner:
                 self.checkstop()
                 self.cleanupsystem()
             else:
-                # Not root: clean selected home; system cleanup will no-op if not root
                 self.cleanuphome()
                 self.checkstop()
                 self.cleanupsystem()
@@ -770,7 +806,6 @@ class SysCleaner:
             self.log(f"[!] Unexpected error: {e}")
 
         self.summary()
-
         if self.opts.shutafter and not self.opts.dryrun:
             self.log("Scheduling shutdown now...")
             ShellExec.run("shutdown now", False, self.log)
@@ -823,6 +858,7 @@ class BlitzClean(QWidget):
         self.cb_shutdown = QCheckBox("Shutdown after cleanup")
         self.cb_run_boot = QCheckBox("Run at boot")
         self.cb_run_shutdown = QCheckBox("Run at shutdown")
+        self.cb_aggressive = QCheckBox("Aggressive app data cleanup (risky)")
 
         self.spin_days = QSpinBox()
         self.spin_days.setRange(0, 3650)
@@ -863,6 +899,7 @@ class BlitzClean(QWidget):
         form.addRow(self.cb_shutdown)
         form.addRow(self.cb_run_boot)
         form.addRow(self.cb_run_shutdown)
+        form.addRow(self.cb_aggressive)
         form.addRow(QLabel("Journal vacuum days:"), self.spin_days)
         form.addRow(QLabel("Journal vacuum size:"), self.edit_size)
         form.addRow(QLabel("Keep Snap revisions:"), self.spin_keep)
@@ -919,6 +956,7 @@ class BlitzClean(QWidget):
         self.cb_shutdown.setChecked(b("shutafter", False))
         self.cb_run_boot.setChecked(b("bootrun", False))
         self.cb_run_shutdown.setChecked(b("shutrun", False))
+        self.cb_aggressive.setChecked(b("aggressive", False))
 
         try:
             self.spin_days.setValue(int(cfg.get("vacuumdays", "7")))
@@ -998,6 +1036,7 @@ class BlitzClean(QWidget):
             shutafter=self.cb_shutdown.isChecked(),
             username=user,
             userhome=home,
+            aggressive=self.cb_aggressive.isChecked(),
         )
 
     # Function 'rootlauncher'
