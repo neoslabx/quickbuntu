@@ -278,10 +278,26 @@ This step retrieves the Quickbuntu repository from GitHub, which contains essent
 
 ```bash
 cd /tmp/
-git clone https://github.com/neoslabx/quickbuntu
-sudo install -m 0755 /tmp/quickbuntu/usr/local/bin/blitzclean /usr/local/bin/blitzclean
-sudo install -D -m 0644 /tmp/quickbuntu/usr/share/pixmaps/blitzclean.png /usr/share/pixmaps/blitzclean.png
-sudo install -m 0644 /tmp/quickbuntu/usr/share/applications/blitzclean.desktop /usr/share/applications/blitzclean.desktop
+git clone https://github.com/neoslab/blitzclean.git
+cd /tmp/blitzclean
+sudo install -m 755 main.py /usr/local/bin/blitzclean
+sudo install -m 644 assets/blitzclean.png /usr/share/pixmaps/blitzclean.png
+cat <<'EOF' | sudo tee /usr/share/applications/blitzclean.desktop
+[Desktop Entry]
+Type=Application
+Name=BlitzClean
+GenericName=System Cleanup
+Comment=Ubuntu cleanup GUI for caches, logs, snaps and more
+Exec=/usr/local/bin/blitzclean
+TryExec=/usr/local/bin/blitzclean
+Icon=/usr/share/pixmaps/blitzclean.png
+Terminal=false
+Categories=System;Utility;
+StartupNotify=true
+Keywords=cleanup;cache;system;maintenance;ubuntu;
+EOF
+sudo update-desktop-database || true
+
 sudo mv /tmp/quickbuntu/usr/local/bin/mediasane /usr/local/bin/
 sudo chown +x /usr/local/bin/mediasane
 sudo update-desktop-database || true
