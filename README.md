@@ -282,6 +282,7 @@ git clone https://github.com/neoslab/blitzclean.git
 cd /tmp/blitzclean
 sudo install -m 755 main.py /usr/local/bin/blitzclean
 sudo install -m 644 assets/blitzclean.png /usr/share/pixmaps/blitzclean.png
+
 cat <<'EOF' | sudo tee /usr/share/applications/blitzclean.desktop
 [Desktop Entry]
 Type=Application
