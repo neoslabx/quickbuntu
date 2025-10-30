@@ -279,7 +279,7 @@ This step retrieves the Quickbuntu repositories from GitHub, which contains esse
 ```bash
 cd /tmp/
 git clone https://github.com/neoslabx/blitzclean
-sudo dpkg -i /tmp/blitzclean/dist/blitzclean_4.9.1_all.deb
+sudo dpkg -i /tmp/blitzclean/dist/blitzclean_*_all.deb
 cd $HOME
 
 cd /tmp/
