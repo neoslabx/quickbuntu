@@ -58,7 +58,7 @@ sudo snap remove --purge thunderbird
 These libraries provide the foundational components required to build, compile, and run modern software. Libraries like `libclang-dev`, `libssl-dev`, and `zlib1g-dev` are dependencies for compilers, encryption, and compression operations used in C/C++, Python, and Rust projects. Installing them early avoids compilation errors when setting up more advanced developer tools later.
 
 ```bash
-sudo apt -y install libclang-dev libffi-dev libfuse2 libssl-dev libudev-dev libxcb-cursor0 zlib1g-dev
+sudo apt -y install libclang-dev libffi-dev libfuse2 libgl1 libssl-dev libudev-dev libxcb-cursor0 libxkbcommon-x11-0 zlib1g-dev
 ```
 
 * * *
@@ -78,9 +78,9 @@ sudo apt -y install fonts-dejavu fonts-powerline
 This step equips your system with a wide range of developer utilities and productivity tools. From compilers (`build-essential`) to network analysis utilities (`nmap`, `wfuzz`, `nikto`), this set ensures your workstation can handle web development, cybersecurity tasks, and general system maintenance. Having them pre-installed means less downtime when switching between project types or debugging different environments.
 
 ```bash
-sudo apt -y install apt-transport-https build-essential ca-certificates curl deborphan dirb dnsenum easytag evolution evolution-ews exiftool filezilla \
-flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap policykit-1 pkg-config protobuf-compiler secure-delete \
-shutter software-properties-common sqlitebrowser sqlmap subversion testssl.sh trash-cli wapiti wfuzz wget whatweb whois zsh
+sudo apt -y install apt-transport-https build-essential ca-certificates curl deborphan dirb dnsenum dpkg-deb easytag evolution evolution-ews exiftool \
+filezilla flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap policykit-1 pkg-config protobuf-compiler \
+secure-delete shutter software-properties-common sqlitebrowser sqlmap subversion testssl.sh trash-cli wapiti wfuzz wget whatweb whois zsh
 ```
 
 * * *
