@@ -272,33 +272,17 @@ cd $HOME
 
 * * *
 
-## 21. Clone Github Repository
+## 21. Clone Github Repositories
 
-This step retrieves the Quickbuntu repository from GitHub, which contains essential tools and scripts developed by NeosLab to automate and optimize Ubuntu setups. The repository includes BlitzClean, a maintenance utility that helps clean, update, and optimize system performance with a single command.
+This step retrieves the Quickbuntu repositories from GitHub, which contains essential tools and scripts developed by NeosLab to automate and optimize Ubuntu setups.
 
 ```bash
 cd /tmp/
-git clone https://github.com/neoslab/blitzclean.git
-cd /tmp/blitzclean
-sudo install -m 755 main.py /usr/local/bin/blitzclean
-sudo install -m 644 assets/blitzclean.png /usr/share/pixmaps/blitzclean.png
+git clone https://github.com/neoslabx/blitzclean
+sudo dpkg -i /tmp/blitzclean/dist/blitzclean_4.9.1_all.deb
+cd $HOME
 
-cat <<'EOF' | sudo tee /usr/share/applications/blitzclean.desktop
-[Desktop Entry]
-Type=Application
-Name=BlitzClean
-GenericName=System Cleanup
-Comment=Ubuntu cleanup GUI for caches, logs, snaps and more
-Exec=/usr/local/bin/blitzclean
-TryExec=/usr/local/bin/blitzclean
-Icon=/usr/share/pixmaps/blitzclean.png
-Terminal=false
-Categories=System;Utility;
-StartupNotify=true
-Keywords=cleanup;cache;system;maintenance;ubuntu;
-EOF
-sudo update-desktop-database || true
-
+cd /tmp/
 sudo mv /tmp/quickbuntu/usr/local/bin/mediasane /usr/local/bin/
 sudo chown +x /usr/local/bin/mediasane
 sudo update-desktop-database || true
