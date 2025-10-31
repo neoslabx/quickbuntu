@@ -283,9 +283,8 @@ sudo dpkg -i /tmp/blitzclean/dist/blitzclean_*_all.deb
 cd $HOME
 
 cd /tmp/
-sudo mv /tmp/quickbuntu/usr/local/bin/mediasane /usr/local/bin/
-sudo chown +x /usr/local/bin/mediasane
-sudo update-desktop-database || true
+git clone https://github.com/neoslabx/mediasane
+sudo dpkg -i /tmp/mediasane/dist/mediasane_*_all.deb
 cd $HOME
 ```
 
