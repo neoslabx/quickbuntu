@@ -79,7 +79,7 @@ This step equips your system with a wide range of developer utilities and produc
 
 ```bash
 sudo apt -y install apt-transport-https build-essential ca-certificates curl deborphan dirb dnsenum dpkg-deb easytag evolution evolution-ews exiftool \
-filezilla flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap policykit-1 pkg-config protobuf-compiler \
+ffmpeg filezilla flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap policykit-1 pkg-config protobuf-compiler \
 secure-delete shutter software-properties-common sqlitebrowser sqlmap subversion testssl.sh trash-cli wapiti wfuzz wget whatweb whois zsh
 ```
 
