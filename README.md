@@ -109,125 +109,7 @@ sudo apt -y install default-jdk default-jre
 
 * * *
 
-## 10. Install Apache2
-
-Description of 350 characters
-
-```bash
-sudo apt -y install apache2
-sudo systemctl start apache2
-sudo systemctl enable apache2
-sudo systemctl status apache2
-```
-
-* * *
-
-## 10. Install MySql Server
-
-Description of 350 characters
-
-```bash
-sudo apt -y install mysql-server
-sudo systemctl start mysql
-sudo systemctl enable mysql
-sudo systemctl status mysql
-sudo mysql_secure_installation
-```
-
-Reply to the following MySQL database server options when prompted:
-
-- VALIDATE PASSWORD
-Enter Y to enable password strength checks on the database server.
-
-- Password strength policy
-Enter 2 to enable multi-character password usage on the server.
-
-- Remove anonymous users
-Enter Y to remove anonymous users from the database server.
-
-- Disallow root login remotely
-Enter Y to disable remote access to the root database user.
-
-- Remove test database
-Enter Y to delete the default MySQL test database on your server.
-
-- Reload privileges tables now
-Enter Y to reload the MySQL privilege tables and apply your configuration changes.
-
-* * *
-
-## 11. Install PHP
-
-Description of 350 characters
-
-```bash
-sudo apt -y install php php-cli php-fpm php-opcache php-mysql php-xml php-mbstring php-curl php-zip
-php -v
-```
-
-* * *
-
-## 12. Install PHP extensions
-
-Description of 350 characters
-
-```bash
-sudo apt -y install libapache2-mod-php
-sudo systemctl restart apache2
-```
-
-* * *
-
-## 13. Install phpMyAdmin
-
-Description of 350 characters
-
-```bash
-sudo apt -y install phpmyadmin
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-* * *
-
-## 14. Install Docker and Docker Compose
+## 10. Install Docker and Docker Compose
 
 Docker allows developers to create reproducible and isolated environments for applications. This installation enables containerized development, ensuring your code runs consistently across different systems. The included Docker Compose plugin simplifies orchestrating multi-container applications such as microservices or CI pipelines.
 
@@ -243,7 +125,7 @@ cd $HOME
 
 * * *
 
-## 15. Install Sublime Text
+## 11. Install Sublime Text
 
 **Sublime Text** is a lightweight yet powerful text editor favored for its speed and simplicity. It’s ideal for editing configuration files, scripts, or quick code snippets without the overhead of a full IDE. The repository method ensures automatic updates and integration with your system’s package manager.
 
@@ -257,7 +139,7 @@ cd $HOME
 
 * * *
 
-## 16. Install Google Chrome
+## 12. Install Google Chrome
 
 Installing Google Chrome gives you a reliable browser for web development and debugging. It supports modern web standards, developer tools, and extensions that simplify testing and profiling of websites or web applications. Having Chrome also ensures consistent behavior when testing projects destined for Chrome-based environments.
 
@@ -270,7 +152,7 @@ cd $HOME
 
 * * *
 
-## 17. Install Telegram Desktop
+## 13. Install Telegram Desktop
 
 **Telegram Desktop** is useful for communication, file sharing, and automation via bots. For developers, it provides an efficient channel for collaborating on projects or receiving real-time notifications from CI/CD pipelines or monitoring bots. Installing it manually ensures you always get the latest official release without waiting for repository updates.
 
@@ -285,7 +167,7 @@ cd $HOME
 
 * * *
 
-## 18. Install Tor Browser
+## 14. Install Tor Browser
 
 **Tor Browser** enhances your online privacy by routing traffic through a secure, distributed network. It’s particularly useful for security researchers, ethical hackers, and developers who need to test websites under different anonymity conditions. This step installs the official Tor release and adds it as a desktop application for convenient launching.
 
@@ -303,7 +185,7 @@ cd $HOME
 
 * * *
 
-## 19. Install Visual Studio Code
+## 15. Install Visual Studio Code
 
 **VS Code** is a powerful, extensible IDE suitable for virtually any programming language. Its integrated Git support, extensions marketplace, and debugging capabilities make it a must-have for developers. Installing it directly from Microsoft’s servers guarantees compatibility with new features and faster updates than Ubuntu’s default repositories.
 
@@ -316,7 +198,7 @@ cd $HOME
 
 * * *
 
-## 20. Install KeePassXC
+## 16. Install KeePassXC
 
 **KeePassXC** is an open-source password manager that securely stores credentials in encrypted databases. For developers managing multiple environments, servers, and API keys, it offers an offline alternative to cloud-based password tools. Its cross-platform compatibility and browser integration make it a reliable daily security companion.
 
@@ -329,7 +211,7 @@ cd $HOME
 
 * * *
 
-## 21. Install ProtonVPN
+## 17. Install ProtonVPN
 
 ProtonVPN encrypts your internet connection, hides your IP address, and protects sensitive development traffic. It’s especially useful when accessing public Wi-Fi, working remotely, or connecting to staging servers over insecure networks. This setup installs the official ProtonVPN client and verifies package integrity using SHA-256 checks.
 
@@ -344,7 +226,7 @@ cd $HOME
 
 * * *
 
-## 22. Install ProtonMail Bridge
+## 18. Install ProtonMail Bridge
 
 **ProtonMail Bridge** allows you to integrate ProtonMail with desktop clients like Thunderbird or Evolution. It creates a secure local encryption layer so your emails remain private while still accessible via standard IMAP/SMTP clients. This setup ensures encrypted email handling for developers working in privacy-sensitive environments.
 
@@ -357,7 +239,7 @@ cd $HOME
 
 * * *
 
-## 23. Install JetBrains Toolbox
+## 19. Install JetBrains Toolbox
 
 JetBrains Toolbox simplifies managing IDEs like IntelliJ IDEA, PyCharm, WebStorm, and CLion. Instead of downloading each IDE separately, the Toolbox provides one interface to install, update, and configure all JetBrains products. This step requires manual download but significantly improves long-term maintainability for multi-language development workflows.
 
@@ -376,7 +258,7 @@ cd $HOME
 
 * * *
 
-## 24. Install Rclone and Rclone Browser
+## 20. Install Rclone and Rclone Browser
 
 **Rclone** is a command-line program that synchronizes files with over 40 cloud services, including Google Drive, Dropbox, and OneDrive. The **Rclone Browser** adds a graphical interface to simplify transfers and synchronization. Together, they offer developers an efficient way to back up code, synchronize configurations, or manage project data securely across devices.
 
@@ -390,7 +272,7 @@ cd $HOME
 
 * * *
 
-## 25. Clone Github Repositories
+## 21. Clone Github Repositories
 
 This step retrieves the Quickbuntu repositories from GitHub, which contains essential tools and scripts developed by NeosLab to automate and optimize Ubuntu setups.
 
@@ -413,7 +295,7 @@ cd $HOME
 
 * * *
 
-## 26. Customize the Terminal (Zsh, Powerlevel10k, and Plugins)
+## 22. Customize the Terminal (Zsh, Powerlevel10k, and Plugins)
 
 A developer’s terminal is a key productivity tool. This customization replaces the default Bash shell with **Zsh**, adds the **Oh My Zsh** framework, and enhances usability with features like autosuggestions and syntax highlighting. The **Powerlevel10k** theme adds a professional, informative prompt with Git, Python, and system status indicators. Together, these tweaks create a fast, elegant, and feature-rich command-line experience.
 
@@ -498,7 +380,7 @@ cd /root/
 
 * * *
 
-## 27. Configure Powerlevel10k
+## 23. Configure Powerlevel10k
 
 After installation, configure the **Powerlevel10k** theme to match your preferences. The configuration wizard lets you adjust icons, color schemes, segment styles, and prompt behavior. Taking the time to fine-tune this step enhances readability and helps organize command-line information efficiently.
 
@@ -508,7 +390,7 @@ p10k configure
 
 * * *
 
-## 28. Final System Update and Cleanup
+## 24. Final System Update and Cleanup
 
 To conclude, perform another full system update and cleanup. This ensures that all installed packages are up to date, redundant files are removed, and the system is left in a stable and optimized state. Running this command post-setup keeps the environment lean, secure, and ready for immediate use.
 
@@ -516,17 +398,6 @@ To conclude, perform another full system update and cleanup. This ensures that a
 sudo apt -y update && sudo apt -y upgrade && sudo apt -y dist-upgrade
 sudo apt -y remove && sudo apt -y autoremove
 sudo apt -y clean && sudo apt -y autoclean
-```
-
-* * *
-
-## 29. Change SSH Port
-
-Another thing that can be done on your machine is configuring the SSH service's listening port. It is set to port 22 by default, therefore if you are running a server, some hacking robots will target this port. Modifying this setting by using a different port is a simple measure to harden your server against automated attacks.
-
-```bash
-sudo sed -i 's/^#Port 22$/Port 49622/' /etc/ssh/sshd_config
-sudo systemctl restart sshd
 ```
 
 * * *
