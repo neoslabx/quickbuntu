@@ -78,8 +78,8 @@ sudo apt -y install fonts-dejavu fonts-powerline
 This step equips your system with a wide range of developer utilities and productivity tools. From compilers (`build-essential`) to network analysis utilities (`nmap`, `wfuzz`, `nikto`), this set ensures your workstation can handle web development, cybersecurity tasks, and general system maintenance. Having them pre-installed means less downtime when switching between project types or debugging different environments.
 
 ```bash
-sudo apt -y install apt-transport-https build-essential ca-certificates curl deborphan dirb dnsenum dpkg-deb easytag evolution evolution-ews exiftool \
-ffmpeg filezilla flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap policykit-1 pkg-config protobuf-compiler \
+sudo apt -y install apt-transport-https build-essential ca-certificates curl deborphan dirb dnsenum easytag evolution evolution-ews exiftool ffmpeg \
+filezilla flatpak gimp git golang gnome-tweaks hashcat httrack hydra inkscape john net-tools nikto nmap policykit-1 pkg-config protobuf-compiler \
 secure-delete shutter software-properties-common sqlitebrowser sqlmap subversion testssl.sh trash-cli wapiti wfuzz wget whatweb whois zsh
 ```
 
@@ -173,8 +173,8 @@ cd $HOME
 
 ```bash
 cd /tmp/
-wget -O "tor-browser-linux-x86_64-14.5.8.tar.xz" "https://www.torproject.org/dist/torbrowser/14.5.8/tor-browser-linux-x86_64-14.5.8.tar.xz"
-tar -xf /tmp/tor-browser-linux-x86_64-14.5.8.tar.xz
+wget -O "tor-browser-linux-x86_64-15.0.1.tar.xz" "https://www.torproject.org/dist/torbrowser/15.0.1/tor-browser-linux-x86_64-15.0.1.tar.xz"
+tar -xf /tmp/tor-browser-linux-x86_64-15.0.1.tar.xz
 mv /tmp/tor-browser $HOME/.local/share/tor-browser
 cd $HOME/.local/share/tor-browser/
 ./start-tor-browser.desktop &> /dev/null &
@@ -258,7 +258,21 @@ cd $HOME
 
 * * *
 
-## 20. Install Rclone and Rclone Browser
+## 20. Install Gitkraken
+
+Description of 350 characteres
+
+> **Manual step:** Download the Ubuntu DEB package from the [official site](https://www.gitkraken.com/download) and save it in `~/Downloads`.
+
+```bash
+cd ~/Downloads
+sudo dpkg -i gitkraken-amd64.deb
+cd $HOME
+```
+
+* * *
+
+## 21. Install Rclone and Rclone Browser
 
 **Rclone** is a command-line program that synchronizes files with over 40 cloud services, including Google Drive, Dropbox, and OneDrive. The **Rclone Browser** adds a graphical interface to simplify transfers and synchronization. Together, they offer developers an efficient way to back up code, synchronize configurations, or manage project data securely across devices.
 
@@ -272,7 +286,7 @@ cd $HOME
 
 * * *
 
-## 21. Clone Github Repositories
+## 22. Clone Github Repositories
 
 This step retrieves the Quickbuntu repositories from GitHub, which contains essential tools and scripts developed by NeosLab to automate and optimize Ubuntu setups.
 
@@ -295,7 +309,7 @@ cd $HOME
 
 * * *
 
-## 22. Customize the Terminal (Zsh, Powerlevel10k, and Plugins)
+## 23. Customize the Terminal (Zsh, Powerlevel10k, and Plugins)
 
 A developer’s terminal is a key productivity tool. This customization replaces the default Bash shell with **Zsh**, adds the **Oh My Zsh** framework, and enhances usability with features like autosuggestions and syntax highlighting. The **Powerlevel10k** theme adds a professional, informative prompt with Git, Python, and system status indicators. Together, these tweaks create a fast, elegant, and feature-rich command-line experience.
 
@@ -355,10 +369,6 @@ git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-/
 git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
 git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
 
-wget https://github.com/ogham/exa/releases/latest/download/exa-linux-x86_64-v0.10.1.zip
-unzip exa-linux-x86_64-v0.10.1.zip
-sudo mv bin/exa /usr/local/bin/exa
-sudo chmod +x /usr/local/bin/exa
 echo -e "\n# Start ZSH\nif [ -t 1 ]; then\n  exec zsh\nfi" >> /root/.bashrc
 mv /root/.zshrc /root/.zshrc.bak
 
@@ -380,7 +390,7 @@ cd /root/
 
 * * *
 
-## 23. Configure Powerlevel10k
+## 24. Configure Powerlevel10k
 
 After installation, configure the **Powerlevel10k** theme to match your preferences. The configuration wizard lets you adjust icons, color schemes, segment styles, and prompt behavior. Taking the time to fine-tune this step enhances readability and helps organize command-line information efficiently.
 
