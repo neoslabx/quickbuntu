@@ -47,7 +47,7 @@ sudo apt -y clean && sudo apt -y autoclean
 Many Ubuntu distributions include pre-installed applications that may not be necessary for developers. For example, **Thunderbird** is an email client that occupies space and system resources if unused. Removing such applications helps streamline the environment, reduces update time, and improves startup performance by avoiding unnecessary background services.
 
 ```bash
-sudo snap list  
+sudo snap list
 sudo snap remove --purge thunderbird
 ```
 
@@ -260,7 +260,7 @@ cd $HOME
 
 ## 20. Install Gitkraken
 
-Description of 350 characteres
+GitKraken is a modern, cross-platform Git client that simplifies version control with an intuitive graphical interface. It offers seamless GitHub, GitLab, and Bitbucket integration, built-in merge conflict resolution, commit graph visualization, and productivity tools that streamline code collaboration and repository management.
 
 > **Manual step:** Download the Ubuntu DEB package from the [official site](https://www.gitkraken.com/download) and save it in `~/Downloads`.
 
@@ -400,7 +400,7 @@ p10k configure
 
 * * *
 
-## 24. Final System Update and Cleanup
+## 25. Final System Update and Cleanup
 
 To conclude, perform another full system update and cleanup. This ensures that all installed packages are up to date, redundant files are removed, and the system is left in a stable and optimized state. Running this command post-setup keeps the environment lean, secure, and ready for immediate use.
 
