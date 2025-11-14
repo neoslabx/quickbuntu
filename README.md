@@ -288,21 +288,21 @@ cd $HOME
 
 ## 22. Clone Github Repositories
 
-This step retrieves the Quickbuntu repositories from GitHub, which contains essential tools and scripts developed by NeosLab to automate and optimize Ubuntu setups.
+This step retrieves the Quickbuntu repositories from GitHub, which contains essential tools and scripts developed by Sqoove to automate and optimize Ubuntu setups.
 
 ```bash
 cd /tmp/
-wget https://github.com/neoslabx/blitzclean/releases/download/v4.9.7/blitzclean_4.9.7_all.deb
+wget https://github.com/sqoove/blitzclean/releases/download/v4.9.7/blitzclean_4.9.7_all.deb
 sudo dpkg -i blitzclean_4.9.7_all.deb
 cd $HOME
 
 cd /tmp/
-wget https://github.com/neoslabx/mediasane/releases/download/v1.1.7/mediasane_1.1.7_all.deb
+wget https://github.com/sqoove/mediasane/releases/download/v1.1.7/mediasane_1.1.7_all.deb
 sudo dpkg -i mediasane_1.1.7_all.deb
 cd $HOME
 
 cd /tmp/
-wget https://github.com/neoslabx/tubereaver/releases/download/v1.3.2/tubereaver_1.3.2_all.deb
+wget https://github.com/sqoove/tubereaver/releases/download/v1.3.2/tubereaver_1.3.2_all.deb
 sudo dpkg -i tubereaver_1.3.2_all.deb
 cd $HOME
 ```
